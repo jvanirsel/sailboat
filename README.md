@@ -108,11 +108,11 @@ pip install gemini3d
 ---
 ---
 
-## Example PBS script queue submission
+## Example PBS script and queue submission
 ### 1. Set up environment variables
-It is convenient to export two environment variables in `~/.bashrc` that locate your `gemini3d` and simulations directory, i.e.
+It is convenient to export two environment variables in `~/.bashrc` that locate your fortran `gemini3d` and simulations directory, i.e.
 ```sh
-export GEMINI_ROOT='<PATH_TO_gemini.bin>'
+export GEMINI_ROOT='<PATH_TO_GEMINI3D>'
 export GEMINI_SIM_ROOT='<PATH_TO_SIMULTATION_DIR>'
 ```
 
