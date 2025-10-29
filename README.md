@@ -144,6 +144,12 @@ cp -nr $PBS_O_HOME/scratch/example_simulation $GEMINI_SIM_ROOT
 ```
 
 ### 3. Submit your job to the queue
+Submit your job to the queue,
 ```sh
 qsub pbs.script
 ```
+and check on its status with
+```sh
+qstat -u $USER
+```
+You can check the job status with `checkjob <JOB_ID>`.
