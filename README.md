@@ -152,4 +152,7 @@ and check on its status with
 ```sh
 qstat -u $USER
 ```
-You can check the job status with `checkjob <JOB_ID>`.
+You can check the job status with more detail using `checkjob <JOB_ID>` or by checking
+```sh
+~/scratch/example_simulation/example_simulation_live.out
+```
