@@ -33,11 +33,22 @@ Ensure you read
 **Do not run ctest on VEGA login node!** First download the required tests,
 ```sh
 ctest --test-dir build --preset download
-qsub -I -l walltime=1:00:00
 ```
 and ensure you read
 ```sh
 100% tests passed, 0 tests failed out of 8
+```
+Now, run an interactive pbs job and navigate back to the `gemini3d` directory
+```sh
+qsub -I -l walltime=1:00:00
+```
+and run the tests
+```sh
+ctest --test-dir build
+```
+and ensure you read
+```sh
+100% tests passed, 0 tests failed out of 73
 ```
 
 ## Installing PyGEMINI on ERAU's VEGA with Bash
