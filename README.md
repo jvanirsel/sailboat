@@ -1,6 +1,12 @@
+# SAILboat
+A personal workspace for SAIL related GEMINI or general computational work. Below is a collection of instructions and guides. For questions or comments, you can email me at vanirsej@erau.edu.
+
+---
+---
+
 ## Installing GEMINI on ERAU's VEGA with Bash
 
-### Load modules
+### 1. Load modules
 Start by loading the GCC, OpenMPI, LAPACK, CMake, and Python modules. In `~/.bash_profile` append the following:
 ```sh
 module load gcc/8.5.0-gcc-8.5.0-cokvw3c
@@ -10,7 +16,7 @@ module load cmake/3.27.9-gcc-8.5.0-5bfhfkk
 module load python/3.11.7-gcc-8.5.0-wfpoppf
 ```
 These modules will load for every login Bash instance (`bash --login`).
-They use the older GCC version (8.5.0) as this is the version that includes the lapack module.
+They use the older GCC version (8.5.0) as this is the version that includes the LAPACK module.
 If your terminal does not start a login shell (default in VS Code), or if you want to avoid logging out and back in, run
 ```sh
 source ~/.bash_profile
@@ -23,8 +29,8 @@ fi
 ```
 to `~/.bash_profile` to run `~/.bashrc` on every login Bash.
 
-### Clone and build GEMINI
-Clone, build, and compile the latest gemini3d repository:
+### 2. Clone and build GEMINI
+Clone the latest gemini3d repository and build it:
 ```sh
 git clone https://github.com/gemini3d/gemini3d.git
 cd gemini3d
@@ -41,7 +47,7 @@ To ensure the binaries complied correctly, ensure you read, for example,
 [100%] Built target gemini.bin
 ```
 
-### Test GEMINI installation (**NOT YET WORKING**)
+### 3. Test GEMINI installation (**NOT YET WORKING**)
 **Do not run ctest on VEGA login node!** You will get yelled at. First download the applicable tests,
 ```sh
 ctest --test-dir build --preset download
@@ -63,9 +69,12 @@ and ensure you read
 100% tests passed, 0 tests failed out of 73
 ```
 
+---
+---
+
 ## Installing PyGEMINI on ERAU's VEGA with Bash
 
-### Load modules
+### 1. Load modules
 If not already done so, in `~/.bash_profile` append the following:
 ```sh
 module load python/3.11.7-gcc-8.5.0-wfpoppf
@@ -75,7 +84,7 @@ and source it,
 source ~/.bash_profile
 ```
 
-### Create GEMINI python environment
+### 2. Create GEMINI Python environment
 PyGEMINI cannot (and should not) be installed on the root VEGA python. Create a python environment in a local `.venvs` location:
 ```sh
 mkdir ~/.venvs
@@ -90,11 +99,14 @@ and then run
 source ~/.bash_profile
 ```
 
-### Install PyGEMINI
+### 3. Install PyGEMINI
 Simply run
 ```sh
 pip install gemini3d
 ```
+
+---
+---
 
 ## Example PBS script
 ```sh
