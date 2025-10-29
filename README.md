@@ -11,7 +11,7 @@ module load openmpi/5.0.2-gcc-8.5.0-diludms
 module load netlib-lapack/3.11.0-gcc-8.5.0-hlxv33x
 module load cmake/3.27.9-gcc-8.5.0-5bfhfkk
 ```
-These use the older GCC version (8.5.0) since it is the one that includes the lapack module. Next, run
+These use the older GCC version (8.5.0) since this is the one that includes the lapack module. Next, run
 ```sh
 source ~/.bash_profile
 ```
@@ -38,11 +38,11 @@ and ensure you read
 ```sh
 100% tests passed, 0 tests failed out of 8
 ```
-Now, run an interactive pbs job and navigate back to the `gemini3d` directory
+Now, run an interactive PBS job,
 ```sh
 qsub -I -l walltime=1:00:00
 ```
-and run the tests
+and navigate back to the `gemini3d` directory. Then run the tests,
 ```sh
 ctest --test-dir build
 ```
@@ -58,13 +58,13 @@ In `~/.bash_profile` append the following:
 ```sh
 module load python/3.11.7-gcc-8.5.0-wfpoppf
 ```
-and run
+and source it,
 ```sh
 source ~/.bash_profile
 ```
 
 ### Create GEMINI python environment
-PyGEMINI cannot be (and should not be) installed on the root VEGA python version. Create a python environment in a local `.venvs` location:
+PyGEMINI cannot (and should not) be installed on the root VEGA python. Create a python environment in a local `.venvs` location:
 ```sh
 mkdir ~/.venvs
 python -m venv ~/.venvs/gemini
