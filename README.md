@@ -108,20 +108,26 @@ pip install gemini3d
 ---
 ---
 
-## Example PBS script
+## Example PBS script queue submission
+### 1. Set up environment variables
+It is convenient to export two environment variables in `~/.bashrc` that locate your `gemini3d` and simulations directory, i.e.
+```sh
+export GEMINI_ROOT='<PATH_TO_gemini.bin>'
+export GEMINI_SIM_ROOT='<PATH_TO_SIMULTATION_DIR>'
+```
+
+### 2. Create PBS batch script
+Inside your simulation directory, create a PBS batch script (e.g. `pbs.script`) containing the following:
 ```sh
 # Command options:
-#PBS -N isinglass_78
+#PBS -N example_simulation
 #PBS -S /bin/bash
 #PBS -q normalq
-#PBS -l nodes=1:ppn=64
+#PBS -l nodes=1:ppn=128
 #PBS -l walltime=4:00:00
-#PBS -o isinglass_78.out
-#PBS -e isinglass_78.err
+#PBS -o example_simulation.out
+#PBS -e example_simulation.err
 #PBS -V
-
-# Navigate to working directory:
-cd $PBS_O_WORKDIR
 
 # Modules to load:
 module purge
@@ -130,5 +136,14 @@ module load openmpi/5.0.2-gcc-8.5.0-diludms
 module load netlib-lapack/3.11.0-gcc-8.5.0-hlxv33x
 
 # Commands to run:
-mpiexec $PBS_O_HOME/gemini/gemini3d/build/gemini.bin $PBS_O_HOME/gemini/sims/isinglass_78
+cp -r $GEMINI_SIM_ROOT/example_simulation $PBS_O_HOME/scratch
+cp $GEMINI_ROOT/build/gemini.bin $PBS_O_HOME/scratch/example_simulation
+cd $PBS_O_HOME/scratch/example_simulation
+mpiexec gemini.bin .
+cp -nr $PBS_O_HOME/scratch/example_simulation $GEMINI_SIM_ROOT
+```
+
+### 3. Submit your job to the queue
+```sh
+qsub pbs.script
 ```
