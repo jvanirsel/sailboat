@@ -1,36 +1,48 @@
-# SAILboat
-Personal repository for SAIL GEMINI and general computational work.
-
 ## Installing GEMINI on ERAU's VEGA with Bash
 
 ### Load modules
-In `~/.bash_profile` append the following:
+Start by loading the GCC, OpenMPI, LAPACK, CMake, and Python modules. In `~/.bash_profile` append the following:
 ```sh
 module load gcc/8.5.0-gcc-8.5.0-cokvw3c
 module load openmpi/5.0.2-gcc-8.5.0-diludms
 module load netlib-lapack/3.11.0-gcc-8.5.0-hlxv33x
 module load cmake/3.27.9-gcc-8.5.0-5bfhfkk
+module load python/3.11.7-gcc-8.5.0-wfpoppf
 ```
-These use the older GCC version (8.5.0) since this is the one that includes the lapack module. Next, run
+These modules will load for every login Bash instance (`bash --login`).
+They use the older GCC version (8.5.0) as this is the version that includes the lapack module.
+If your terminal does not start a login shell (default in VS Code), or if you want to avoid logging out and back in, run
 ```sh
 source ~/.bash_profile
 ```
+You can instead do this in `~/.bashrc` but this is not common practise as this will load these modules in every bash instance, interactive or not. Add
+```sh
+if [ -f ~/.bashrc ]; then
+    source ~/.bashrc
+fi
+```
+to `~/.bash_profile` to run `~/.bashrc` on every login Bash.
 
 ### Clone and build GEMINI
-Clone the latest gemini3d repository and build it in parallel:
+Clone, build, and compile the latest gemini3d repository:
 ```sh
 git clone https://github.com/gemini3d/gemini3d.git
 cd gemini3d
 cmake -B build
 cmake --build build --parallel
 ```
-Ensure you read
+The build configuration (`-B build`) will generate the necessary files in the build directory.
+This script will take a few minutes to complete; it will note multiple missing packages but will download source code for these to be compiled during the build step.
+This step can take up to 10 minutes, depending on download times.
+A full compile (`--build build`) will take approximately 5 – 10 minutes, depending on which packages need to be compiled; you will see many warnings, but these can be safely ignored.
+Executables are placed in the build directory and can be run from there.
+To ensure the binaries complied correctly, ensure you read, for example,
 ```sh
 [100%] Built target gemini.bin
 ```
 
 ### Test GEMINI installation (**NOT YET WORKING**)
-**Do not run ctest on VEGA login node!** First download the required tests,
+**Do not run ctest on VEGA login node!** You will get yelled at. First download the applicable tests,
 ```sh
 ctest --test-dir build --preset download
 ```
@@ -54,7 +66,7 @@ and ensure you read
 ## Installing PyGEMINI on ERAU's VEGA with Bash
 
 ### Load modules
-In `~/.bash_profile` append the following:
+If not already done so, in `~/.bash_profile` append the following:
 ```sh
 module load python/3.11.7-gcc-8.5.0-wfpoppf
 ```
@@ -82,4 +94,29 @@ source ~/.bash_profile
 Simply run
 ```sh
 pip install gemini3d
+```
+
+## Example PBS script
+```sh
+# Command options:
+#PBS -N isinglass_78
+#PBS -S /bin/bash
+#PBS -q normalq
+#PBS -l nodes=1:ppn=64
+#PBS -l walltime=4:00:00
+#PBS -o isinglass_78.out
+#PBS -e isinglass_78.err
+#PBS -V
+
+# Navigate to working directory:
+cd $PBS_O_WORKDIR
+
+# Modules to load:
+module purge
+module load gcc/8.5.0-gcc-8.5.0-cokvw3c
+module load openmpi/5.0.2-gcc-8.5.0-diludms
+module load netlib-lapack/3.11.0-gcc-8.5.0-hlxv33x
+
+# Commands to run:
+mpiexec $PBS_O_HOME/gemini/gemini3d/build/gemini.bin $PBS_O_HOME/gemini/sims/isinglass_78
 ```
