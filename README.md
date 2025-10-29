@@ -139,7 +139,7 @@ module load netlib-lapack/3.11.0-gcc-8.5.0-hlxv33x
 cp -r $GEMINI_SIM_ROOT/example_simulation $PBS_O_HOME/scratch
 cp $GEMINI_ROOT/build/gemini.bin $PBS_O_HOME/scratch/example_simulation
 cd $PBS_O_HOME/scratch/example_simulation
-mpiexec gemini.bin .
+mpiexec gemini.bin . > example_simulation_live.out 2> example_simulation_live.err
 cp -nr $PBS_O_HOME/scratch/example_simulation $GEMINI_SIM_ROOT
 ```
 
