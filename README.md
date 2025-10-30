@@ -35,7 +35,7 @@ Clone the latest gemini3d repository and build it:
 git clone https://github.com/gemini3d/gemini3d.git
 cd gemini3d
 cmake -B build
-cmake --build build --parallel
+cmake --build build -j16
 ```
 The build configuration (`-B build`) will generate the necessary files in the build directory.
 This script will take a few minutes to complete; it will note multiple missing packages but will download source code for these to be compiled during the build step.
@@ -56,9 +56,11 @@ and ensure you read
 ```sh
 100% tests passed, 0 tests failed out of 8
 ```
-Now, run an interactive PBS job,
+Next, run an interactive PBS job.
+This interactive session requires all processors available in the node (on VEGA this is always 192).
+To start the session, run
 ```sh
-qsub -I -l walltime=1:00:00
+qsub -I -l walltime=1:00:00 -l nodes=1:ppn=192
 ```
 and navigate back to the `gemini3d` directory. Then run the tests,
 ```sh
@@ -66,8 +68,9 @@ ctest --test-dir build
 ```
 and ensure you read
 ```sh
-100% tests passed, 0 tests failed out of 73
+100% tests passed, 0 tests failed out of 68
 ```
+The amount of tests that run might vary, depending on how many are disabled.
 
 ---
 ---
@@ -125,8 +128,6 @@ Inside your simulation directory, create a PBS batch script (e.g. `pbs.script`) 
 #PBS -q normalq
 #PBS -l nodes=1:ppn=128
 #PBS -l walltime=4:00:00
-#PBS -o example_simulation.out
-#PBS -e example_simulation.err
 #PBS -V
 
 # Modules to load:
@@ -139,7 +140,7 @@ module load netlib-lapack/3.11.0-gcc-8.5.0-hlxv33x
 cp -r $GEMINI_SIM_ROOT/example_simulation $PBS_O_HOME/scratch
 cp $GEMINI_ROOT/build/gemini.bin $PBS_O_HOME/scratch/example_simulation
 cd $PBS_O_HOME/scratch/example_simulation
-mpiexec gemini.bin . > example_simulation_live.out 2> example_simulation_live.err
+mpiexec gemini.bin . > example_simulation.out 2> example_simulation.err
 cp -nr $PBS_O_HOME/scratch/example_simulation $GEMINI_SIM_ROOT
 ```
 
