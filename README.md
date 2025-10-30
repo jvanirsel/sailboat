@@ -47,8 +47,8 @@ To ensure the binaries complied correctly, ensure you read, for example,
 [100%] Built target gemini.bin
 ```
 
-### 3. Test GEMINI installation (**NOT YET WORKING**)
-**Do not run ctest on VEGA login node!** You will get yelled at. First download the applicable tests,
+### 3. Test GEMINI installation
+***Do not run ctest on VEGA login node!*** You will get yelled at. First download the applicable tests,
 ```sh
 ctest --test-dir build --preset download
 ```
@@ -71,6 +71,7 @@ and ensure you read
 100% tests passed, 0 tests failed out of 68
 ```
 The amount of tests that run might vary, depending on how many are disabled.
+Make sure to exit the interactive session when finished.
 
 ---
 ---
@@ -141,7 +142,7 @@ cp -r $GEMINI_SIM_ROOT/example_simulation $PBS_O_HOME/scratch
 cp $GEMINI_ROOT/build/gemini.bin $PBS_O_HOME/scratch/example_simulation
 cd $PBS_O_HOME/scratch/example_simulation
 mpiexec gemini.bin . > example_simulation.out 2> example_simulation.err
-cp -nr $PBS_O_HOME/scratch/example_simulation $GEMINI_SIM_ROOT
+mv -nr $PBS_O_HOME/scratch/example_simulation $GEMINI_SIM_ROOT
 ```
 
 ### 3. Submit your job to the queue
@@ -153,7 +154,7 @@ and check on its status with
 ```sh
 qstat -u $USER
 ```
-You can check the job status with more detail using `checkjob <JOB_ID>` or by checking
+You can check the job status with more detail using `checkjob <JOB_ID>` or by reading
 ```sh
-~/scratch/example_simulation/example_simulation_live.out
+~/scratch/example_simulation/example_simulation.out
 ```
