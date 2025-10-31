@@ -94,7 +94,7 @@ PyGEMINI cannot (and should not) be installed on the root VEGA python. Create a 
 mkdir ~/.venvs
 python -m venv ~/.venvs/gemini
 ```
-Next, in `~/.bash_profile`, append:
+Next, if you expect to be working in this environment most of the time, append the following in `~/.bash_profile`:
 ```sh
 source ~/.venvs/gemini/bin/activate
 ```
@@ -102,9 +102,10 @@ and then run
 ```sh
 source ~/.bash_profile
 ```
+Otherwise, simply source the `activate` file.
 
 ### 3. Install PyGEMINI
-Simply run
+When inside the GEMINI environment (terminal starts with e.g. `(gemini) [username@vegaln1 ~]$`), simply run
 ```sh
 pip install gemini3d
 ```
@@ -129,6 +130,8 @@ Inside your simulation directory, create a PBS batch script (e.g. `pbs.script`) 
 #PBS -q normalq
 #PBS -l nodes=1:ppn=128
 #PBS -l walltime=4:00:00
+#PBS -o $HOME/logs/${PBS_JOBNAME}.${PBS_JOBID}.out
+#PBS -e $HOME/logs/${PBS_JOBNAME}.${PBS_JOBID}.err
 #PBS -V
 
 # Modules to load:
@@ -138,12 +141,13 @@ module load openmpi/5.0.2-gcc-8.5.0-diludms
 module load netlib-lapack/3.11.0-gcc-8.5.0-hlxv33x
 
 # Commands to run:
-cp -r $GEMINI_SIM_ROOT/example_simulation $PBS_O_HOME/scratch
-cp $GEMINI_ROOT/build/gemini.bin $PBS_O_HOME/scratch/example_simulation
-cd $PBS_O_HOME/scratch/example_simulation
-mpiexec gemini.bin . > example_simulation.out 2> example_simulation.err
-mv -nr $PBS_O_HOME/scratch/example_simulation $GEMINI_SIM_ROOT
+cp -r $GEMINI_SIM_ROOT/$PBS_JOBNAME $PBS_O_HOME/scratch
+cp $GEMINI_ROOT/build/gemini.bin $PBS_O_HOME/scratch/$PBS_JOBNAME
+cd $PBS_O_HOME/scratch/$PBS_JOBNAME
+mpiexec gemini.bin . > $PBS_JOBNAME.out 2> $PBS_JOBNAME.err
+cp -nr $PBS_O_HOME/scratch/$PBS_JOBNAME $GEMINI_SIM_ROOT
 ```
+If all is well, you can remove the simulation directory from `~/scratch` when finished.
 
 ### 3. Submit your job to the queue
 Submit your job to the queue,
