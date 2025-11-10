@@ -109,6 +109,11 @@ When inside the GEMINI environment (terminal starts with e.g. `(gemini) [usernam
 ```sh
 pip install gemini3d
 ```
+(Optional) If you're using Visual Studio Code, install the *Modern Fortran* extension for working on GEMINI source code and run
+```sh
+pip install fortls
+```
+Then copy the output of `realpath $(which fortls)` into the `fortran.fortls.path` settings parameter. This allows for syntax highlighting and options like "Go to Definition".
 
 ---
 ---
