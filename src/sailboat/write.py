@@ -1,5 +1,31 @@
 from os import path, getenv, makedirs
 
+HOME = getenv('HOME')
+GEMINI_ROOT = getenv('GEMINI_ROOT')
+GEMINI_SIM_ROOT = getenv('GEMINI_SIM_ROOT')
+
+if not all([HOME, GEMINI_ROOT, GEMINI_SIM_ROOT]):
+    raise ValueError('One or emore environment variables not found: ' \
+    'HOME, GEMINI_ROOT, GEMINI_SIM_ROOT')
+
+def config(
+        sim_name: str,
+        is_ic: bool = True
+        ):
+    sim_path = path.join(GEMINI_SIM_ROOT, sim_name)
+    cfg_file = path.join(sim_path, 'config.nml')
+    new_lines = []
+    with open(cfg_file, 'r') as f:
+        lines = f.readlines()
+        for line in lines:
+            if line.startswith('ymd'):
+                pass
+            else:
+                new_lines.append(line)
+    
+    print(new_lines)
+
+
 def pbs(
         sim_name: str,
         is_ic: bool = False,
@@ -8,14 +34,6 @@ def pbs(
         num_procs_per_node: int = 192,
         num_hours: float = 24
         ):
-    
-    HOME = getenv('HOME')
-    GEMINI_ROOT = getenv('GEMINI_ROOT')
-    GEMINI_SIM_ROOT = getenv('GEMINI_SIM_ROOT')
-
-    if not all([HOME, GEMINI_ROOT, GEMINI_SIM_ROOT]):
-        raise ValueError('One or emore environment variables not found: ' \
-        'HOME, GEMINI_ROOT, GEMINI_SIM_ROOT')
 
     subdirec = ''
     if is_ic:
@@ -71,4 +89,4 @@ def pbs(
         f.write(f'cp {gemini_bin} {work_path}\n')
         f.write(f'cd {work_path}\n')
         f.write(f'mpiexec gemini.bin . > {sim_name}.out 2> {sim_name}.err\n')
-        f.write(f'cp -nr {work_path} {GEMINI_SIM_ROOT}\n\n')
+        f.write(f'cp -nr {work_path} {path.dirname(sim_path)}\n\n')
