@@ -1,16 +1,15 @@
-from netCDF4 import Dataset
 import numpy as np
+import h5py
 from gemini3d import utils, read
 from os import path, getenv, makedirs, listdir
 from datetime import datetime
-import h5py
 from scipy.constants import h, c
+import sailboat
 
-def convert_solar_flux(sim_name: str = None, nc4_direc: str = None):
+def convert_solar_flux(sim_name: str, nc4_direc: str):
+
     ## load config data
-    sim_root = getenv('GEMINI_SIM_ROOT')
-    if sim_root is None:
-        raise KeyError('Environment variable GEMINI_SIM_ROOT not set')
+    sim_root = sailboat.GEMINI_SIM_ROOT
     sim_path = path.join(sim_root, sim_name)
     cfg = read.config(sim_path)
 
@@ -32,7 +31,7 @@ def convert_solar_flux(sim_name: str = None, nc4_direc: str = None):
     for nc4_filename in nc4_filenames:
         print(f'Processing {nc4_filename}...', end='\r')
         nc4_path = path.join(nc4_direc, nc4_filename)
-        nc4_ds = Dataset(nc4_path)
+        nc4_ds = h5py.File(nc4_path)
         nc4_ds_tgcm = nc4_ds['sb_tgcm'] # first 22 tgcm spectral bins match gemini bins
 
         ## read coordinate information (only once)
@@ -81,11 +80,11 @@ def convert_solar_flux(sim_name: str = None, nc4_direc: str = None):
     f.create_dataset('/mlon', data=glon)
     f.close()
 
+    nc4_ds.close()
     print('Done' + ' ' * 80)
 
 if __name__ == '__main__':
-    # sim_name = 'Oct2023_eclipse_3D'
-    sim_name = 'apep_2023'
-    nc4_direc = path.join('..', 'apep', '2023')
-
-    convert_solar_flux(sim_name, nc4_direc)
+    # sim_name = 'apep_2023_nux2'
+    # nc4_direc = path.join('..', 'apep', '2023', 'fism2_masked')
+    from sys import argv
+    convert_solar_flux(argv[1], argv[2])

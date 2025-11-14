@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sailboat"
+version = "0.1.0"
+description = "Gemini3D related tools for ERAU's Space and Atmospheric Instrumentation Lab"
+readme = "README.md"
+authors = [
+    { name = "Jules van Irsel", email = "vanirsej@erau.edu" }
+]
+license = { text = "MIT" }
+requires-python = ">=3.11"
