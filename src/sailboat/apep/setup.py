@@ -8,29 +8,29 @@ sim_name = 'apep_2023_nux2_test'
 sim_direc = path.join(sim_root, sim_name)
 
 cfg = read.config(sim_direc)
-ic_direc = cfg['eq_dir']
+eq_direc = cfg['eq_dir']
 
-if path.isfile(path.join(ic_direc, 'config.nml')):
-    cfg_ic = read.config(ic_direc)
-    time = cfg_ic['time'][-1]
-    if path.isfile(find.frame(ic_direc, time)):
+if path.isfile(path.join(eq_direc, 'config.nml')):
+    cfg_eq = read.config(eq_direc)
+    time = cfg_eq['time'][-1]
+    if path.isfile(find.frame(eq_direc, time)):
         print('Final equilibrium output found...')
     else:
-        raise FileNotFoundError(f'Please run equilibrium simultation {ic_direc}')
+        raise FileNotFoundError(f'Please run equilibrium simultation {eq_direc}')
 else:
-    sailboat.write.pbs(ic_direc, is_ic=True)
+    sailboat.write.pbs(eq_direc, is_eq=True)
 
-# xg_ic = read.grid(path_ic)
+# xg_eq = read.grid(path_eq)
 # xg_sim = tilted_dipole.tilted_dipole3d(cfg_sim)
 # xg_sim = read.grid(path_sim)
 
-# model.setup(path_ic, path_ic)
+# model.setup(path_eq, path_eq)
 # model.setup(path_sim, path_sim)
 
 # apep_ephem = h5py.File('../apep/2023/ephemeris.h5')['36.386/interpolated']
 # traj = np.array((apep_ephem['longitude'][:], apep_ephem['latitude'][:], apep_ephem['altitude'][:]))
 
-# plot_grid(cfg_ic, xg_ic, xg_compare=xg_sim, trajectory=traj)
+# plot_grid(cfg_eq, xg_eq, xg_compare=xg_sim, trajectory=traj)
 # plot_grid(cfg_sim, xg_sim, trajectory=traj)
 
 

@@ -1,7 +1,9 @@
 from datetime import datetime
 import requests
 import numpy as np
-from gemini3d.grid.convert import Re
+# from gemini3d.grid.convert import Re
+from gemini3d import read, utils as gu
+from sailboat import RE
 from os import path, makedirs, listdir
 import imageio.v3 as iio
 
@@ -17,16 +19,16 @@ def dipole_to_geomag(q, p, phi) -> tuple:
     # q, p, theta > 0
     theta = np.arcsec((q * p**2)**(1/3))
     rho = (p * q**2)**(-1/3)
-    r = Re * rho
+    r = RE * rho
 
-    alt = r - Re
+    alt = r - RE
     mlon = np.rad2deg(phi)
     mlat = 90 - np.rad2deg(theta)
 
     return alt, mlon, mlat
 
 
-def get_activity(date: datetime, f107a_range = 81):
+def get_activity(date: datetime, f107a_range = 81) -> dict:
     num_header_lines = 40
     delta_days = (f107a_range - 1) // 2
     id0 = (date - datetime(1932,1,1)).days + num_header_lines - delta_days
@@ -49,7 +51,7 @@ def get_activity(date: datetime, f107a_range = 81):
 
     f107 = f107s[delta_days]
     f107p = f107s[delta_days - 1]
-    f107a = np.mean(f107s)
+    f107a = round(np.mean(f107s), 1)
 
     return {'f107': f107, 'f107p': f107p, 'f107a': f107a, 'Ap': Ap}
 
@@ -173,4 +175,42 @@ def si_units(variable: str, order) -> str:
         base_units = 'V'
     return prefix[order] + base_units
 
+
+def check_activity(cfg):
+    times = cfg['time']
+    time = times[len(times) // 2]
+    activity = get_activity(time)
+    all_match = True
+    for v in ['f107a', 'f107', 'Ap']:
+        if activity[v] != cfg[v]:
+            print(f'Value of f107a in config.nml is {cfg[v]}, but is {activity[v]} for simulation halftime.')
+            all_match = False
+    if all_match:
+        print('Activity levels in config.nml match www-app3.gfz-potsdam.de values.')
+
+
+def internet_access():
+    try:
+        requests.get('https://www.google.com')
+    except:
+        return False
+    return True
+
+
+def simulation_finished_setup(sim_direc):
+    cfg = read.config(sim_direc)
+    initial_conditions_path = path.join(sim_direc, cfg['indat_file'])
+    return path.isfile(initial_conditions_path)
+
+
+def simulation_finished(sim_direc):
+    if not path.isfile(path.join(sim_direc, 'config.nml')):
+        return False
+    if not simulation_finished_setup(sim_direc):
+        return False
+    cfg = read.config(sim_direc)
+    final_output_filename = gu.datetime2stem(cfg['time'][-1]) + '.h5'
+    if path.isfile(path.join(sim_direc, final_output_filename)):
+        return True
+    return False
 

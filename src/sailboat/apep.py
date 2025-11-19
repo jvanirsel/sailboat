@@ -85,9 +85,3 @@ def convert_solar_flux(sim_name: str,
 
     solflux_data_nc4.close()
     print('Done' + ' ' * 80)
-
-if __name__ == '__main__':
-    # sim_name = 'apep_2023_nux2'
-    # nc4_direc = path.join('..', 'apep', '2023', 'fism2_masked')
-    from sys import argv
-    convert_solar_flux(argv[1], argv[2])

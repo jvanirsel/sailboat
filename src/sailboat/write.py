@@ -1,5 +1,6 @@
 from os import path, getenv, makedirs
 from datetime import datetime, timedelta
+from gemini3d import read
 
 HOME = getenv('HOME')
 GEMINI_ROOT = getenv('GEMINI_ROOT')
@@ -12,7 +13,7 @@ if not GEMINI_SIM_ROOT:
     raise ValueError('Environment variables not found: GEMINI_SIM_ROOT. ' \
     'Please set GEMINI_SIM_ROOT to location of gemini simulations')
 
-def ic_config(
+def eq_config(
         sim_direc: str,
         tdur: int = 64800,
         dtout: int = 3600,
@@ -30,10 +31,13 @@ def ic_config(
         return value
 
     sim_direc = path.normpath(sim_direc)
-    sim_name = path.basename(sim_direc)
-    ic_direc = path.join(GEMINI_SIM_ROOT, 'ics', sim_name)
     sim_cfg_path = path.join(sim_direc, 'config.nml')
-    ic_cfg_path = path.join(ic_direc + '_eq', 'config.nml')
+
+    cfg = read.config(sim_direc)
+    eq_direc = cfg['eq_dir']
+    if not path.isdir(eq_direc):
+        makedirs(eq_direc)
+    eq_cfg_path = path.join(eq_direc, 'config.nml')
 
     ignore_namelists = ['neutral_perturb',
                         'precip',
@@ -42,6 +46,8 @@ def ic_config(
                         'fields',
                         'fang',
                         'fang_pars',
+                        ]
+    ignore_variables = ['setup_functions',
                         ]
 
     new_lines = []
@@ -52,6 +58,8 @@ def ic_config(
             if do_write:
                 if line[1:-1] in ignore_namelists:
                     do_write = False
+                elif line.startswith(tuple(ignore_variables)):
+                    pass
                 elif line.startswith('ymd'):
                     ymd = datetime.strptime(get_value(line), '%Y,%m,%d')
                 elif line.startswith('UTsec0'):
@@ -90,7 +98,7 @@ def ic_config(
                 do_write = True
                 new_lines.pop(-1)
     
-    with open(ic_cfg_path, 'w') as f:
+    with open(eq_cfg_path, 'w') as f:
         f.writelines(new_lines)
 
 
