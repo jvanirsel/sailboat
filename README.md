@@ -167,3 +167,13 @@ You can check the job status with more detail using `checkjob <JOB_ID>` or by re
 ```sh
 ~/scratch/example_simulation/example_simulation.out
 ```
+
+## Configuring GEMINI with VS Code
+In order to have the Modern Fortran extension work with GEMINI in VS Code, go to `File > Preferences > Settings > Extensions > Modern Fortran` and do the following:
+- In `Linting: Include Paths`, add the following root paths:
+    - `/<path-to-gemini3d>/src`
+    - `/<path-to-gemini3d>/build/**/include`
+- In `Language Server: Path`, add the root path to `fortls`. To find where `fortls` is installed, use `which fortls`. If it is not installed, simply `pip install fortls`.
+
+This allows for proper linting of the GEMINI source code, as well as the prebuilt modules contained in any of the `include` directories. Keep in mind that this requires GEMINI to have configured its build environment, i.e. `cmake -B build`.
+
