@@ -12,7 +12,7 @@ def quick_summary(cfg: dict,
                   ):
     
     time_str = gu.datetime2stem(time).replace(' ', '0')
-    flag = cfg.get('flagoutput')
+    output_flag = cfg.get('flagoutput')
     grid_flag = cfg.get('gridflag')
 
     if grid_flag != 1:
@@ -20,7 +20,7 @@ def quick_summary(cfg: dict,
         dat.coords['x2'] = dat.coords['x2'] / 1e3
         dat.coords['x3'] = dat.coords['x3'] / 1e3
 
-    match flag:
+    match output_flag:
         case 1:
             num_rows = 7
             num_cols = 4
@@ -74,9 +74,9 @@ def quick_summary(cfg: dict,
 
     plt.tight_layout()
     plot_direc = su.md(path.join(cfg['nml'].parent, 'plots', 'summary', f'all_vars_x{slice_coord}_slice'))
-    save_path =  path.join(plot_direc, f'all_x{slice_coord}_slice_{time_str}.png')
-    print(f'Saving {save_path}')
-    plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    plot_path =  path.join(plot_direc, f'all_x{slice_coord}_slice_{time_str}.png')
+    print(f'Saving {plot_path}')
+    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
     plt.close(fig)
 
 
@@ -91,11 +91,11 @@ def variable(
         mlon_ref: float = None,
         make_gifs: bool = True
         ):
-    sim_path = path.join(GEMINI_SIM_ROOT, sim_name)
-    plot_direc = su.md(path.join(sim_path, 'plots', variable))
+    sim_direc = path.join(GEMINI_SIM_ROOT, sim_name)
+    plot_direc = su.md(path.join(sim_direc, 'plots', variable))
 
-    cfg = read.config(sim_path)
-    xg = a_bit_of_light_reading.grid(sim_path)
+    cfg = read.config(sim_direc)
+    xg = a_bit_of_light_reading.grid(sim_direc)
     times = cfg['time']
 
     scl = 10**dat_order
@@ -108,30 +108,30 @@ def variable(
 
     for time in times:
         time_str = gu.datetime2stem(time).replace(' ', '0')
-        dat = read.frame(sim_path, time, var=variable)[variable] / scl
+        dat = read.frame(sim_direc, time, var=variable)[variable] / scl
 
-        plot_name_alt = f'{variable}_alt={alt_ref / 1e3:.0f}km_{time_str}.png'
-        plot_path = path.join(plot_direc, plot_name_alt)
+        plot_filename_alt = f'{variable}_alt={alt_ref / 1e3:.0f}km_{time_str}.png'
+        plot_path = path.join(plot_direc, plot_filename_alt)
         title = f'{time_str} (alt = {alt_ref / 1e3:.0f}+/-{alt_res / 1e3:.0f} km)'
         dat_label = f'{variable} ({units})'
         # plot_alt_slice(xg, dat, alt_ref, alt_res, plot_path, title, dat_label)
 
-        plot_name_glon = f'{variable}_glon={glon_ref:.0f}deg_{time_str}.png'
-        plot_path = path.join(plot_direc, plot_name_glon)
+        plot_filename_glon = f'{variable}_glon={glon_ref:.0f}deg_{time_str}.png'
+        plot_path = path.join(plot_direc, plot_filename_glon)
         title = f'{time_str} (glon = {glon_ref:.0f}+/-{glon_res:.0f}°)'
         dat_label = f'{variable} ({units})'
         # plot_glon_slice(xg, dat, glon_ref, glon_res, alt_ref, plot_path, title, dat_label)
 
-        plot_name_mlon = f'{variable}_mlon={mlon_ref:.0f}deg_{time_str}.png'
-        plot_path = path.join(plot_direc, plot_name_mlon)
+        plot_filename_mlon = f'{variable}_mlon={mlon_ref:.0f}deg_{time_str}.png'
+        plot_path = path.join(plot_direc, plot_filename_mlon)
         title = f'{time_str} (mlon = {mlon_ref:.0f}°)'
         dat_label = f'{variable} ({units})'
         plot_mlon_slice(xg, dat, mlon_ref, alt_ref, plot_path, title, dat_label)
 
     if make_gifs:
-        su.make_gif(plot_direc, suffix=plot_name_alt[-15:])
-        su.make_gif(plot_direc, suffix=plot_name_glon[-15:])
-        su.make_gif(plot_direc, suffix=plot_name_mlon[-15:])
+        su.make_gif(plot_direc, suffix=plot_filename_alt[-15:])
+        su.make_gif(plot_direc, suffix=plot_filename_glon[-15:])
+        su.make_gif(plot_direc, suffix=plot_filename_mlon[-15:])
 
 
 def plot_alt_slice(
@@ -219,12 +219,12 @@ def grid(
         trajectory: np.ndarray = np.empty((3, 0))
         ):
     
-    sim_path = path.join(GEMINI_SIM_ROOT, sim_name)
-    plot_direc = su.md(path.join(sim_path, 'plots'))
-    filename = path.join(plot_direc, f'grid_plot_{coord_type}.png')
+    sim_direc = path.join(GEMINI_SIM_ROOT, sim_name)
+    plot_direc = su.md(path.join(sim_direc, 'plots'))
+    plot_path = path.join(plot_direc, f'grid_plot_{coord_type}.png')
     views = [[0, 0], [-90, 0], [0, 90], [-45, 45]]
 
-    xg_in = read.grid(sim_path)
+    xg_in = read.grid(sim_direc)
     if trajectory.shape[0] != 3:
         raise ValueError(f'trajectory shape should be (3, :)')
 
@@ -311,8 +311,8 @@ def grid(
     plt.legend()
     plt.subplots_adjust(left=0, right=0.95, top=1, bottom=0.05, wspace=0, hspace=0)
     plt.show()
-    print(f'Saving {filename}...')
-    plt.savefig(filename)
+    print(f'Saving {plot_path}...')
+    plt.savefig(plot_path)
     plt.close()
 
 

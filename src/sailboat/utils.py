@@ -1,8 +1,6 @@
-import matplotlib.pyplot as plt
 from datetime import datetime
 import requests
 import numpy as np
-import xarray as xr
 from gemini3d.grid.convert import Re
 from os import path, makedirs, listdir
 import imageio.v3 as iio
@@ -33,15 +31,14 @@ def get_activity(date: datetime, f107a_range = 81):
     delta_days = (f107a_range - 1) // 2
     id0 = (date - datetime(1932,1,1)).days + num_header_lines - delta_days
 
-    url = 'https://www-app3.gfz-potsdam.de/kp_index/Kp_ap_Ap_SN_F107_since_1932.txt'
-    response = requests.get(url)
+    url_path = 'https://www-app3.gfz-potsdam.de/kp_index/Kp_ap_Ap_SN_F107_since_1932.txt'
+    response = requests.get(url_path)
     # lines = strsplit(webread(url),'\n');
     if response.status_code == 200:
         lines = response.text.split('\n')
     else:
         print(response.reason)
         raise RuntimeError(f'Status = {response.status_code}, {response.reason}')
-
 
     f107s = np.empty(f107a_range)
     for id in range(id0, id0 + f107a_range):
@@ -152,16 +149,16 @@ def dipole_glon_slice(
     
     return dat_out, glat_out, alt_out
 
+
 def make_gif(plot_direc, suffix='.png', buffer=100):
-    pngs = [f for f in listdir(plot_direc) if f.endswith(suffix)]
-    pngs.sort()
-    frames = [iio.imread(path.join(plot_direc, p)) for p in pngs]
-    gif_name = path.join(plot_direc, pngs[0][:-4] + '.gif')
-    print(f'Saving {gif_name}...')
-    iio.imwrite(gif_name, frames,
-                duration=0.1,
-                loop=0)
-    
+    image_filenames = [f for f in listdir(plot_direc) if f.endswith(suffix)]
+    image_filenames.sort()
+    frames = [iio.imread(path.join(plot_direc, img)) for img in image_filenames]
+    gif_path = path.join(plot_direc, image_filenames[0][:-4] + '.gif')
+    print(f'Saving {gif_path}...')
+    iio.imwrite(gif_path, frames, duration=0.1, loop=0)
+
+
 def si_units(variable: str, order) -> str:
     prefix = {-9: 'n', -6: 'u', -3: 'm', 0: '', 3: 'k', 6: 'M', 9: 'G'}
     if variable[0] == 'n':
@@ -175,3 +172,5 @@ def si_units(variable: str, order) -> str:
     elif 'Phi' in variable:
         base_units = 'V'
     return prefix[order] + base_units
+
+

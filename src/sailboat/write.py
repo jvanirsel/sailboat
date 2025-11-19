@@ -1,58 +1,128 @@
 from os import path, getenv, makedirs
+from datetime import datetime, timedelta
 
 HOME = getenv('HOME')
 GEMINI_ROOT = getenv('GEMINI_ROOT')
 GEMINI_SIM_ROOT = getenv('GEMINI_SIM_ROOT')
 
-if not all([HOME, GEMINI_ROOT, GEMINI_SIM_ROOT]):
-    raise ValueError('One or emore environment variables not found: ' \
-    'HOME, GEMINI_ROOT, GEMINI_SIM_ROOT')
+if not GEMINI_ROOT:
+    raise ValueError('Environment variables not found: GEMINI_ROOT. ' \
+    'Please set GEMINI_ROOT to location of build/gemini.bin')
+if not GEMINI_SIM_ROOT:
+    raise ValueError('Environment variables not found: GEMINI_SIM_ROOT. ' \
+    'Please set GEMINI_SIM_ROOT to location of gemini simulations')
 
-def config(
-        sim_name: str,
-        is_ic: bool = True
+def ic_config(
+        sim_direc: str,
+        tdur: int = 64800,
+        dtout: int = 3600,
+        min_lx: int = 192,
+        nmf: float = 5e11,
+        nme: float = 2e11
         ):
-    sim_path = path.join(GEMINI_SIM_ROOT, sim_name)
-    cfg_file = path.join(sim_path, 'config.nml')
+    
+    def get_value(line: str):
+        value = line.replace(' ', '').replace('\n', '').split('=')[-1]
+        if value.isdigit():
+            value = int(value)
+        elif value.replace('e', '').isdecimal():
+            value = float(value)
+        return value
+
+    sim_direc = path.normpath(sim_direc)
+    sim_name = path.basename(sim_direc)
+    ic_direc = path.join(GEMINI_SIM_ROOT, 'ics', sim_name)
+    sim_cfg_path = path.join(sim_direc, 'config.nml')
+    ic_cfg_path = path.join(ic_direc + '_eq', 'config.nml')
+
+    ignore_namelists = ['neutral_perturb',
+                        'precip',
+                        'efield',
+                        'solflux',
+                        'fields',
+                        'fang',
+                        'fang_pars',
+                        ]
+
     new_lines = []
-    with open(cfg_file, 'r') as f:
+    do_write = True
+    with open(sim_cfg_path, 'r') as f:
         lines = f.readlines()
         for line in lines:
-            if line.startswith('ymd'):
-                pass
-            else:
-                new_lines.append(line)
+            if do_write:
+                if line[1:-1] in ignore_namelists:
+                    do_write = False
+                elif line.startswith('ymd'):
+                    ymd = datetime.strptime(get_value(line), '%Y,%m,%d')
+                elif line.startswith('UTsec0'):
+                    time = ymd + timedelta(seconds=int(get_value(line))-tdur)
+                    UTsec0 = 3600 * time.hour + 60 * time.minute + time.second
+                    new_lines.append(datetime.strftime(time, 'ymd = %Y, %m, %d') + '\n')
+                    new_lines.append(f'UTsec0 = {UTsec0:.0f}\n')
+                elif line.startswith('tdur'):
+                    new_lines.append(f'tdur = {tdur:.0f}\n')
+                elif line.startswith('dtout'):
+                    new_lines.append(f'dtout = {dtout:.0f}\n')
+                elif line.startswith('dtheta'):
+                    dtheta = int(get_value(line)) + 5
+                    new_lines.append(f'dtheta = {dtheta:.0f}\n')
+                elif line.startswith('dphi'):
+                    dphi = int(get_value(line)) + 5
+                    new_lines.append(f'dphi = {dphi:.0f}\n')
+                elif line.startswith('lq ') or line.startswith('lq='):
+                    lq = max(int(get_value(line)) / 2 // min_lx * min_lx, min_lx)
+                    new_lines.append(f'lq = {lq:.0f}\n')
+                elif line.startswith('lp ') or line.startswith('lp='):
+                    lp = max(int(get_value(line)) / 2 // min_lx * min_lx, min_lx)
+                    new_lines.append(f'lp = {lp:.0f}\n')
+                elif line.startswith('lphi'):
+                    lphi = int(get_value(line)) // 2
+                    new_lines.append(f'lphi = {lphi:.0f}\n')
+                elif line.startswith('altmin'):
+                    altmin = get_value(line) / 2
+                    new_lines.append(f'altmin = {altmin/1e3:.0f}e3\n')
+                elif line.startswith('eq_dir'):
+                    new_lines.append(f'nmf = {nmf/1e11:.0f}e11\n')
+                    new_lines.append(f'nme = {nme/1e11:.0f}e11\n')
+                else:
+                    new_lines.append(line)
+            elif line == '/':
+                do_write = True
+                new_lines.pop(-1)
     
-    print(new_lines)
+    with open(ic_cfg_path, 'w') as f:
+        f.writelines(new_lines)
 
 
 def pbs(
-        sim_name: str,
-        is_ic: bool = False,
+        sim_direc: str,
         queue: str = 'normalq',
         num_nodes: int = 1,
         num_procs_per_node: int = 192,
-        num_hours: float = 24
+        num_hours: float = 24,
+        email: str = ''
         ):
 
-    subdirec = ''
-    if is_ic:
-        subdirec = 'ics'
-    sim_path = path.join(GEMINI_SIM_ROOT, subdirec, sim_name)
-    log_path = path.join(HOME, 'logs')
-    scratch_path = path.join(HOME, 'scratch')
-    work_path = path.join(scratch_path, sim_name)
+    sim_direc = path.normpath(sim_direc)
+    sim_name = path.basename(sim_direc)
+    log_direc = path.join(HOME, 'logs')
+    scratch_direc = path.join(HOME, 'scratch')
+    work_direc = path.join(scratch_direc, sim_name)
 
-    if not path.isdir(sim_path):
-        raise FileNotFoundError(f'Cannot find simulation directory {sim_path}')
+    if not path.isdir(sim_direc):
+        raise FileNotFoundError(f'Cannot find simulation directory: {sim_direc}')
+    if not path.isdir(log_direc):
+        makedirs(log_direc)
+    if not email:
+        email = f'{path.basename(HOME)}@erau.edu'
 
-    pbs_file = path.join(sim_path, 'submit.pbs')
-    out_file = path.join(log_path, sim_name + '.${PBS_JOBID}.out')
-    err_file = out_file[:-3] + 'err'
-    gemini_bin = path.join(GEMINI_ROOT, 'build', 'gemini.bin')
+    pbs_path = path.join(sim_direc, 'submit.pbs')
+    stdout_path = path.join(log_direc, sim_name + '.${PBS_JOBID}.out')
+    stderr_path = stdout_path[:-3] + 'err'
+    gemini_bin_path = path.join(GEMINI_ROOT, 'build', 'gemini.bin')
 
     pbs_pfx = '#PBS'
-    shell_name = '/bin/bash'
+    shell_path = '/bin/bash'
 
     dys, rem = divmod(num_hours, 24)
     hrs, rem = divmod(rem, 1)
@@ -64,18 +134,17 @@ def pbs(
                    'openmpi/5.0.2-gcc-8.5.0-diludms',
                    'netlib-lapack/3.11.0-gcc-8.5.0-hlxv33x']
 
-    if not path.isdir(log_path):
-        makedirs(log_path)
-
-    with open(pbs_file, 'w') as f:
+    with open(pbs_path, 'w') as f:
         f.write('# Command options:\n')
         f.write(f'{pbs_pfx} -N {sim_name}\n')
-        f.write(f'{pbs_pfx} -S {shell_name}\n')
+        f.write(f'{pbs_pfx} -S {shell_path}\n')
         f.write(f'{pbs_pfx} -q {queue}\n')
         f.write(f'{pbs_pfx} -l nodes={num_nodes}:ppn={num_procs_per_node}\n')
         f.write(f'{pbs_pfx} -l walltime={walltime_str}\n')
-        f.write(f'{pbs_pfx} -o {out_file}\n')
-        f.write(f'{pbs_pfx} -e {err_file}\n')
+        f.write(f'{pbs_pfx} -M {email}\n')
+        f.write(f'{pbs_pfx} -m ef\n')
+        f.write(f'{pbs_pfx} -o {stdout_path}\n')
+        f.write(f'{pbs_pfx} -e {stderr_path}\n')
         f.write(f'{pbs_pfx} -V\n\n')
 
         f.write('# Load modules:\n')
@@ -85,8 +154,10 @@ def pbs(
         f.write('\n')
 
         f.write('Commands to run:\n')
-        f.write(f'cp -r {sim_path} {scratch_path}\n')
-        f.write(f'cp {gemini_bin} {work_path}\n')
-        f.write(f'cd {work_path}\n')
+        f.write(f'cp -r {sim_direc} {scratch_direc}\n')
+        f.write(f'cp {gemini_bin_path} {work_direc}\n')
+        f.write(f'cd {work_direc}\n')
         f.write(f'mpiexec gemini.bin . > {sim_name}.out 2> {sim_name}.err\n')
-        f.write(f'cp -nr {work_path} {path.dirname(sim_path)}\n\n')
+        f.write(f'cp -nr {work_direc} {path.dirname(sim_direc)}\n')
+
+

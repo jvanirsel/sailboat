@@ -5,20 +5,20 @@ import sailboat
 
 sim_root = sailboat.GEMINI_SIM_ROOT
 sim_name = 'apep_2023_nux2_test'
-sim_path = path.join(sim_root, sim_name)
+sim_direc = path.join(sim_root, sim_name)
 
-cfg = read.config(sim_path)
-ic_path = cfg['eq_dir']
+cfg = read.config(sim_direc)
+ic_direc = cfg['eq_dir']
 
-if path.isfile(path.join(ic_path, 'config.nml')):
-    cfg_ic = read.config(ic_path)
+if path.isfile(path.join(ic_direc, 'config.nml')):
+    cfg_ic = read.config(ic_direc)
     time = cfg_ic['time'][-1]
-    if path.isfile(find.frame(ic_path, time)):
+    if path.isfile(find.frame(ic_direc, time)):
         print('Final equilibrium output found...')
     else:
-        raise FileNotFoundError(f'Please run equilibrium simultation {ic_path}')
+        raise FileNotFoundError(f'Please run equilibrium simultation {ic_direc}')
 else:
-    sailboat.write.pbs(ic_path, is_ic=True)
+    sailboat.write.pbs(ic_direc, is_ic=True)
 
 # xg_ic = read.grid(path_ic)
 # xg_sim = tilted_dipole.tilted_dipole3d(cfg_sim)
@@ -38,7 +38,7 @@ else:
 
 
 # for time in cfg['time']:
-#     dat = read.frame(sim_path, time)
+#     dat = read.frame(sim_direc, time)
 #     for ci in range(3):
 #         plot_all(cfg, dat, ci)
     
