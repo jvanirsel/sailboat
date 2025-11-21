@@ -1,9 +1,8 @@
+from sailboat import RE
+from gemini3d import read, utils
 from datetime import datetime
 import requests
 import numpy as np
-# from gemini3d.grid.convert import Re
-from gemini3d import read, utils as gu
-from sailboat import RE
 from os import path, makedirs, listdir
 import imageio.v3 as iio
 
@@ -162,9 +161,21 @@ def make_gif(plot_direc, suffix='.png', buffer=100):
 
 
 def si_units(variable: str, order) -> str:
-    prefix = {-9: 'n', -6: 'u', -3: 'm', 0: '', 3: 'k', 6: 'M', 9: 'G'}
+    prefix = {-9: 'n',
+              -6: 'µ',
+              -3: 'm',
+              -2: 'c',
+              -1: 'd',
+              0: '',
+              3: 'k',
+              6: 'M',
+              9: 'G'}
     if variable[0] == 'n':
         base_units = 'm-3'
+        if order == -8:
+            order = -2
+        elif order != 0:
+            raise ValueError('Order should not be 0 for density variables')
     elif variable[0] == 'v':
         base_units = 'm s-1'
     elif variable[0] == 'T':
@@ -198,6 +209,8 @@ def internet_access():
 
 
 def simulation_finished_setup(sim_direc):
+    if not path.isfile(path.join(sim_direc, 'config.nml')):
+        return False
     cfg = read.config(sim_direc)
     initial_conditions_path = path.join(sim_direc, cfg['indat_file'])
     return path.isfile(initial_conditions_path)
@@ -209,7 +222,7 @@ def simulation_finished(sim_direc):
     if not simulation_finished_setup(sim_direc):
         return False
     cfg = read.config(sim_direc)
-    final_output_filename = gu.datetime2stem(cfg['time'][-1]) + '.h5'
+    final_output_filename = utils.datetime2stem(cfg['time'][-1]) + '.h5'
     if path.isfile(path.join(sim_direc, final_output_filename)):
         return True
     return False

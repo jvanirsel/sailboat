@@ -1,25 +1,23 @@
-import numpy as np
-import h5py
-from gemini3d import utils, read
+from sailboat import GEMINI_SIM_ROOT
+from gemini3d import utils
 from os import path, makedirs, listdir
 from datetime import datetime
 from scipy.constants import h, c
-from sailboat import GEMINI_SIM_ROOT
+import numpy as np
+import h5py
 
-def convert_solar_flux(sim_name: str,
-                       solflux_direc: str,
-                       in_extension: str = 'nc4'
+def convert_solar_flux(cfg: dict,
+                       xg: dict, # required for setup_functions in config.nml
+                       solflux_in_extension: str = 'nc4',
+                       solflux_in_direc: str = 'data/apep/2023/fism2_masked'
                        ):
 
-    ## load config data
-    sim_root = GEMINI_SIM_ROOT
-    sim_direc = path.join(sim_root, sim_name)
-    cfg = read.config(sim_direc)
+    sim_direc = path.dirname(cfg['nml'])
 
     ## read input filenames
-    solflux_filenames = [f for f in listdir(solflux_direc) if f.endswith('.' + in_extension)]
+    solflux_filenames = [f for f in listdir(solflux_in_direc) if f.endswith('.' + solflux_in_extension)]
     if not solflux_filenames:
-        raise FileNotFoundError(f'No .nc4 files found in {solflux_direc}')
+        raise FileNotFoundError(f'No .nc4 files found in {solflux_in_direc}')
 
     ## read solflux data directory from config
     try:
@@ -33,16 +31,16 @@ def convert_solar_flux(sim_name: str,
     first_file = True
     for solflux_filename in solflux_filenames:
         print(f'Processing {solflux_filename}...', end='\r')
-        solflux_path = path.join(solflux_direc, solflux_filename)
-        solflux_data_nc4 = h5py.File(solflux_path)
-        solflux_tgcm_data_nc4 = solflux_data_nc4['sb_tgcm'] # first 22 tgcm spectral bins match gemini bins
+        solflux_path = path.join(solflux_in_direc, solflux_filename)
+        solflux_data = h5py.File(solflux_path)
+        solflux_tgcm_data = solflux_data['sb_tgcm'] # first 22 tgcm spectral bins match gemini bins
 
         ## read coordinate information (only once)
         if first_file:
-            glat = np.array(solflux_data_nc4['Lat'][:], dtype=np.float64) # degrees
-            glon = np.array(solflux_data_nc4['Lon'][:], dtype=np.float64) # degrees
-            wvl0 = np.array(solflux_tgcm_data_nc4['Start_wavelength'][:22], dtype=np.float64) * 1e-9 # m
-            wvl1 = np.array(solflux_tgcm_data_nc4['End_wavelength'][:22], dtype=np.float64) * 1e-9 # m
+            glat = np.array(solflux_data['Lat'][:], dtype=np.float64) # degrees
+            glon = np.array(solflux_data['Lon'][:], dtype=np.float64) # degrees
+            wvl0 = np.array(solflux_tgcm_data['Start_wavelength'][:22], dtype=np.float64) * 1e-9 # m
+            wvl1 = np.array(solflux_tgcm_data['End_wavelength'][:22], dtype=np.float64) * 1e-9 # m
             
             ## calculate average photon energy per spectral bin to convert W/m2 to photons/m2/s
             avg_photon_energy = h * c * np.log(wvl1 / wvl0) / (wvl1 - wvl0) # J (<E> = h c <1 / wvl>)
@@ -55,7 +53,7 @@ def convert_solar_flux(sim_name: str,
             first_file = False
 
         ## read irradiance data
-        irr = np.array(solflux_tgcm_data_nc4['msk_irradiance_tlsm'][:, :, :22], dtype=np.float64) # W/m2
+        irr = np.array(solflux_tgcm_data['msk_irradiance_tlsm'][:, :, :22], dtype=np.float64) # W/m2
         irr = irr / avg_photon_energy # photons/m2/s
         irr = irr[:, glon_ids, :].transpose(1,0,2) # llon x llat x 22
         Iinf = np.array(irr.transpose(2, 1, 0)) # preserve irr.shape when read by fortran
@@ -70,6 +68,8 @@ def convert_solar_flux(sim_name: str,
         h5_ds.attrs['ref_url'] = 'https://doi.org/10.1029/2005JA011160'
         h5_ds.attrs['wavelength_bins'] = [wvl0, wvl1]
         h5_ds.attrs['wavelength_units'] = 'm'
+        h5_ds.attrs['version'] = '1.0.0'
+        h5_ds.attrs['tracked_changes'] = ''
         f.close()
 
     ## save simulation size and grid information
@@ -83,5 +83,5 @@ def convert_solar_flux(sim_name: str,
     f.create_dataset('/mlon', data=glon)
     f.close()
 
-    solflux_data_nc4.close()
-    print('Done' + ' ' * 80)
+    solflux_data.close()
+    print('Done converting solar flux data...' + ' ' * 40)

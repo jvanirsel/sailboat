@@ -1,17 +1,7 @@
-from os import path, getenv, makedirs
-from datetime import datetime, timedelta
 from gemini3d import read
-
-HOME = getenv('HOME')
-GEMINI_ROOT = getenv('GEMINI_ROOT')
-GEMINI_SIM_ROOT = getenv('GEMINI_SIM_ROOT')
-
-if not GEMINI_ROOT:
-    raise ValueError('Environment variables not found: GEMINI_ROOT. ' \
-    'Please set GEMINI_ROOT to location of build/gemini.bin')
-if not GEMINI_SIM_ROOT:
-    raise ValueError('Environment variables not found: GEMINI_SIM_ROOT. ' \
-    'Please set GEMINI_SIM_ROOT to location of gemini simulations')
+from sailboat import HOME, GEMINI_ROOT
+from os import path, makedirs
+from datetime import datetime, timedelta
 
 def eq_config(
         sim_direc: str,
@@ -31,9 +21,9 @@ def eq_config(
         return value
 
     sim_direc = path.normpath(sim_direc)
-    sim_cfg_path = path.join(sim_direc, 'config.nml')
 
     cfg = read.config(sim_direc)
+    sim_cfg_path = cfg['nml']
     eq_direc = cfg['eq_dir']
     if not path.isdir(eq_direc):
         makedirs(eq_direc)

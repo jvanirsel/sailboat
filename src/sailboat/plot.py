@@ -1,6 +1,6 @@
-from os import path
+from sailboat import GEMINI_SIM_ROOT, utils as su
 from gemini3d import read, utils as gu
-from sailboat import utils as su, a_bit_of_light_reading, GEMINI_SIM_ROOT
+from os import path
 import numpy as np
 import matplotlib.pyplot as plt
 import xarray as xr
@@ -91,11 +91,12 @@ def variable(
         mlon_ref: float = None,
         make_gifs: bool = True
         ):
+    
     sim_direc = path.join(GEMINI_SIM_ROOT, sim_name)
     plot_direc = su.md(path.join(sim_direc, 'plots', variable))
 
     cfg = read.config(sim_direc)
-    xg = a_bit_of_light_reading.grid(sim_direc)
+    xg = read.grid(sim_direc)
     times = cfg['time']
 
     scl = 10**dat_order

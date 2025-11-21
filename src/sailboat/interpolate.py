@@ -1,9 +1,9 @@
-import numpy as np
-from datetime import datetime
+from sailboat import RE
 from gemini3d import read
 from gemini3d.grid import convert
-from sailboat import a_bit_of_light_reading, RE
+from datetime import datetime
 from scipy.interpolate import RegularGridInterpolator
+import numpy as np
 
 def trajectory(
         sim_direc: str,
