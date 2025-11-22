@@ -7,14 +7,18 @@ from os import path, makedirs, listdir
 import imageio.v3 as iio
 
 
-def cut_order(data):
+def cut_order(data: np.ndarray) -> tuple[np.ndarray, int]:
+    '''
+    Divide data by maximal order of magnitude.
+    Returns new data of max order unity and the calculated order.
+    '''
     order = np.floor(np.log10(np.max(np.abs(data))))
     if ~np.isfinite(order):
         order = 0
     return data / (10 ** order), int(order)
 
 
-def dipole_to_geomag(q, p, phi) -> tuple:
+def dipole_to_geomag(q, p, phi):
     # q, p, theta > 0
     theta = np.arcsec((q * p**2)**(1/3))
     rho = (p * q**2)**(-1/3)
@@ -27,14 +31,21 @@ def dipole_to_geomag(q, p, phi) -> tuple:
     return alt, mlon, mlat
 
 
-def get_activity(date: datetime, f107a_range = 81) -> dict:
+def get_activity(date: datetime, f107a_range: int = 81) -> dict:
+    '''
+    Calculate the solar activity levels from gfz-potsdam.de.
+    Returns dictionary containing:
+    - f107: the F10.7 local noon-time observed solar radio flux 
+    - f107p: the F10.7 value of the previous day
+    - f107a: the n-day averaged F10.7 value set by f107a_range
+    - Ap: the daily equivalent planetary amplitude
+    '''
     num_header_lines = 40
     delta_days = (f107a_range - 1) // 2
     id0 = (date - datetime(1932,1,1)).days + num_header_lines - delta_days
 
     url_path = 'https://www-app3.gfz-potsdam.de/kp_index/Kp_ap_Ap_SN_F107_since_1932.txt'
     response = requests.get(url_path)
-    # lines = strsplit(webread(url),'\n');
     if response.status_code == 200:
         lines = response.text.split('\n')
     else:
@@ -55,106 +66,139 @@ def get_activity(date: datetime, f107a_range = 81) -> dict:
     return {'f107': f107, 'f107p': f107p, 'f107a': f107a, 'Ap': Ap}
 
 
-def md(direc):
+def md(direc: str) -> str:
+    '''
+    Make directory shortcut
+    '''
     makedirs(direc, exist_ok=True)
     return direc
 
 
 def dipole_alt_slice(
         xg: dict,
-        dat: np.ndarray,
+        data: np.ndarray,
         alt_ref: float,
         alt_res: float = 20e3
-        ) -> np.ndarray:
+        ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    '''
+    Linearly interpolate data on a tilted dipole grid to a reference altitude.
+    Returns lx1 x lx3 data array along with interpolated geographic longitude and latitude arrays.
+    '''
     lx = xg['lx']
     glon = xg['glon']
     glat = xg['glat']
     alt = xg['alt']
-
     lx1 = lx[0]
     lx2 = lx[1]
     lx3 = lx[2]
+
+    # gather nearest neighbour indeces for x2
     x2ids =  np.argmin(np.abs(alt - alt_ref), axis=1)
 
-    dat_out = np.full((lx[0], lx[2]), np.nan)
-    glon_out = np.full(dat_out.shape, np.nan)
-    glat_out = np.full(dat_out.shape, np.nan)
+    data_out = np.full((lx1, lx3), np.nan)
+    glon_out = np.full(data_out.shape, np.nan)
+    glat_out = np.full(data_out.shape, np.nan)
     for x1id in range(lx1):
         for x3id in range(lx3):
+
+            # collect x2 previous, central, and next indeces
             x2id = x2ids[x1id, x3id]
             x2idp = np.max((x2id-1, 0))
             x2idn = np.min((x2id+1, lx2-1))
 
+            # collect previous and next altitude
             altp = alt[x1id, x2idp, x3id]
             altn = alt[x1id, x2idn, x3id]
 
+            # ignore values where altitude at central x2 index is out of range
             dalt = np.abs(alt[x1id, x2id, x3id] - alt_ref)
             if dalt < alt_res:
-                datp = dat[x1id, x2idp, x3id]
-                datn = dat[x1id, x2idn, x3id]
-                dat_out[x1id, x3id] = datp + (datn - datp) * (alt_ref - altp) / (altn - altp)
 
+                # collect previous and next data, and linearly interpolate
+                datap = data[x1id, x2idp, x3id]
+                datan = data[x1id, x2idn, x3id]
+                data_out[x1id, x3id] = datap + (datan - datap) * (alt_ref - altp) / (altn - altp)
+
+            # collect previous and next geographic longitudes and latitudes, and linearly interpolate
             glonp = glon[x1id, x2idp, x3id]
             glonn = glon[x1id, x2idn, x3id]
             glatp = glat[x1id, x2idp, x3id]
             glatn = glat[x1id, x2idn, x3id]
-
             glon_out[x1id, x3id] = glonp + (glonn - glonp) * (alt_ref - altp) / (altn - altp)
             glat_out[x1id, x3id] = glatp + (glatn - glatp) * (alt_ref - altp) / (altn - altp)
     
-    return dat_out, glon_out, glat_out
+    return data_out, glon_out, glat_out
 
 
 def dipole_glon_slice(
         xg: dict,
-        dat: np.ndarray,
+        data: np.ndarray,
         glon_ref: float,
         glon_res: float = 1
-        ) -> np.ndarray:
+        ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    '''
+    Linearly interpolate data on a tilted dipole grid to a reference geographic longitude.
+    Returns lx1 x lx2 data array along with interpolated geographic latitude and altitude arrays.
+    '''
     lx = xg['lx']
     glon = xg['glon']
     glat = xg['glat']
     alt = xg['alt']
-
     lx1 = lx[0]
     lx2 = lx[1]
     lx3 = lx[2]
+
+    # gather nearest neighbour indeces for x3
     x3ids =  np.argmin(np.abs(glon - glon_ref), axis=2)
 
-    dat_out = np.full((lx[0], lx[1]), np.nan)
-    glat_out = np.full(dat_out.shape, np.nan)
-    alt_out = np.full(dat_out.shape, np.nan)
+    data_out = np.full((lx1, lx2), np.nan)
+    glat_out = np.full(data_out.shape, np.nan)
+    alt_out = np.full(data_out.shape, np.nan)
     for x1id in range(lx1):
         for x2id in range(lx2):
+
+            # collect x3 previous, central, and next indeces
             x3id = x3ids[x1id, x2id]
             x3idp = np.max((x3id-1, 0))
             x3idn = np.min((x3id+1, lx3-1))
 
+            # collect previous and next longitude
             glonp = glon[x1id, x2id, x3idp]
             glonn = glon[x1id, x2id, x3idn]
 
+            # ignore values where longitude at central x3 index is out of range
             dglon = np.abs(glon[x1id, x2id, x3id] - glon_ref)
             if dglon < glon_res:
-                datp = dat[x1id, x2id, x3idp]
-                datn = dat[x1id, x2id, x3idn]
-                # linear interpolation of non-linear angle = bad. hoping thetap ~= thetan and rp ~= rn
-                dat_out[x1id, x2id] = datp + (datn - datp) * (glon_ref - glonp) / (glonn - glonp)
 
+                # collect previous and next data, and linearly interpolate
+                datap = data[x1id, x2id, x3idp]
+                datan = data[x1id, x2id, x3idn]
+                data_out[x1id, x2id] = datap + (datan - datap) * (glon_ref - glonp) / (glonn - glonp)
+
+            # collect previous and next geographic latitudes and altitudes, and linearly interpolate
             glatp = glat[x1id, x2id, x3idp]
             glatn = glat[x1id, x2id, x3idn]
             altp = alt[x1id, x2id, x3idp]
             altn = alt[x1id, x2id, x3idn]
-
             glat_out[x1id, x2id] = glatp + (glatn - glatp) * (glon_ref - glonp) / (glonn - glonp)
             alt_out[x1id, x2id] = altp + (altn - altp) * (glon_ref - glonp) / (glonn - glonp)
     
-    return dat_out, glat_out, alt_out
+    return data_out, glat_out, alt_out
 
 
-def make_gif(plot_direc, suffix='.png', buffer=100):
+def make_gif(plot_direc: str, suffix: str = '.png'):
+    '''
+    Generate gif out of all image files in plot directory with given suffix.
+    Frame sequency is that of the sorted list of filenames.
+    '''
+    # collect filenames and sort them
     image_filenames = [f for f in listdir(plot_direc) if f.endswith(suffix)]
     image_filenames.sort()
+
+    # generate frames from filenames
     frames = [iio.imread(path.join(plot_direc, img)) for img in image_filenames]
+
+    # save gif using first filename stem
     gif_path = path.join(plot_direc, image_filenames[0][:-4] + '.gif')
     print(f'Saving {gif_path}...')
     iio.imwrite(gif_path, frames, duration=0.1, loop=0)
