@@ -3,6 +3,12 @@ from gemini3d import read, model
 from os import path, makedirs
 
 def setup(sim_name: str):
+    '''
+    Setup for gemini simulation.
+    Create and setup equilibrium simulation if not already done.
+    Double-check solar activity levels.
+    Write PBS script and provide submit command for convenience.
+    '''
 
     # read configuration and equilibrium directory
     sim_direc = path.join(GEMINI_SIM_ROOT, sim_name)
@@ -43,6 +49,10 @@ def setup(sim_name: str):
 
 
 def process(sim_name: str):
+    '''
+    Series of post-processing tasks.
+    Plor grid and list of variables.
+    '''
     plot.grid(sim_name)
     plot.variable(sim_name, 'ne')
 

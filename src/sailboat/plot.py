@@ -115,13 +115,13 @@ def variable(
         plot_path = path.join(plot_direc, plot_filename_alt)
         title = f'{time_str} (alt = {alt_ref / 1e3:.0f}+/-{alt_res / 1e3:.0f} km)'
         dat_label = f'{variable} ({units})'
-        # plot_alt_slice(xg, dat, alt_ref, alt_res, plot_path, title, dat_label)
+        plot_alt_slice(xg, dat, alt_ref, alt_res, plot_path, title, dat_label)
 
         plot_filename_glon = f'{variable}_glon={glon_ref:.0f}deg_{time_str}.png'
         plot_path = path.join(plot_direc, plot_filename_glon)
         title = f'{time_str} (glon = {glon_ref:.0f}+/-{glon_res:.0f}°)'
         dat_label = f'{variable} ({units})'
-        # plot_glon_slice(xg, dat, glon_ref, glon_res, alt_ref, plot_path, title, dat_label)
+        plot_glon_slice(xg, dat, glon_ref, glon_res, alt_ref, plot_path, title, dat_label)
 
         plot_filename_mlon = f'{variable}_mlon={mlon_ref:.0f}deg_{time_str}.png'
         plot_path = path.join(plot_direc, plot_filename_mlon)

@@ -1,4 +1,4 @@
-from sailboat import plot, GEMINI_SIM_ROOT, interpolate, read as sread
+from sailboat import plot, GEMINI_SIM_ROOT, interpolate, apep, read as sread, sim
 from gemini3d import read
 from os import path
 import h5py
@@ -11,7 +11,12 @@ sim_direc = path.join(GEMINI_SIM_ROOT, sim_name)
 cfg = read.config(sim_direc)
 eq_direc = cfg['eq_dir']
 
-print(path.dirname(cfg['nml']))
+apep.convert_solar_flux(cfg, cfg, solflux_in_direc='/home2/vanirsej/sailboat/src/sailboat/data/apep/2023/fism2_masked')
+
+# print(cfg.keys())
+
+# xg_comp = read.grid(eq_direc)
+# plot.grid(sim_name, xg_comp)
 quit()
 
 # xg = read.grid(sim_direc)
