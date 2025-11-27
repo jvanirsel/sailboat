@@ -1,8 +1,9 @@
-from sailboat import GEMINI_SIM_ROOT
 from gemini3d import utils
 from os import path, makedirs, listdir
 from datetime import datetime, timedelta
 from scipy.constants import h, c
+from scipy.interpolate import interp1d
+import matplotlib.pyplot as plt
 import numpy as np
 import h5py
 
@@ -97,3 +98,170 @@ def convert_solar_flux(cfg: dict,
 
     solflux_data.close()
     print('Done converting solar flux data...' + ' ' * 40)
+
+
+def convert_ephemeris():
+    min_alt = 50e3 # m
+    start_times = [np.datetime64('2023-10-14T16:00:00'), 
+                   np.datetime64('2023-10-14T16:35:00'), 
+                   np.datetime64('2023-10-14T17:10:00')]
+    ephemeris_data_h5 = h5py.File('data/apep/2023/ephemeris.h5', 'w')
+
+    for rid in range(386, 389):
+        ephemeris_in_path = f'data/apep/2023/ephemeris/Apep1_x{rid}.txt'
+        print(f'Processing {ephemeris_in_path}...')
+        data = np.loadtxt(ephemeris_in_path, delimiter='\t', dtype=np.float64)
+        time = start_times[rid - 386] + (data[:, 0]*1e6).astype('timedelta64[us]')
+        day0 = time[0].astype('datetime64[D]')
+        us_of_day = (time - day0).astype(np.int64)
+
+        lat = data[:, 1]
+        lon = data[:, 2] % 360
+        alt = data[:, 3] * 1e3
+        
+        ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/raw/time', data=us_of_day, dtype=np.int64)
+        ds.attrs['description'] = f'Microsecond of {day0}'
+        ds.attrs['units'] = 'microseconds'
+
+        ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/raw/latitude', data=lat, dtype=np.float64)
+        ds.attrs['description'] = 'Geographic latitude'
+        ds.attrs['units'] = 'degrees'
+
+        ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/raw/longitude', data=lon, dtype=np.float64)
+        ds.attrs['description'] = 'Geographic longitude'
+        ds.attrs['units'] = 'degrees'
+
+        ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/raw/altitude', data=alt, dtype=np.float64)
+        ds.attrs['description'] = 'Geographic altitude'
+        ds.attrs['units'] = 'meters'
+
+        is_above_min_alt = alt > min_alt
+        is_before_max_time = time < np.datetime64('2023-10-15')
+        ids = is_above_min_alt & is_before_max_time
+
+        dt = np.median(np.diff(us_of_day[ids]))
+        us_of_day_interp = np.arange(np.min(us_of_day[ids]), np.max(us_of_day[ids]) + dt/2, dt, dtype=np.int64)
+
+        flat = interp1d(us_of_day[ids], lat[ids])
+        flon = interp1d(us_of_day[ids], lon[ids])
+        falt = interp1d(us_of_day[ids], alt[ids])
+
+        lat_interp = flat(us_of_day_interp)
+        lon_interp = flon(us_of_day_interp)
+        alt_interp = falt(us_of_day_interp)
+
+        ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/interpolated/time', data=us_of_day_interp, dtype=np.int64)
+        ds.attrs['description'] = f'Interpolated microsecond of {day0}'
+        ds.attrs['units'] = 'microseconds'
+
+        ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/interpolated/latitude', data=lat_interp, dtype=np.float64)
+        ds.attrs['description'] = 'Interpolated geographic latitude'
+        ds.attrs['units'] = 'degrees'
+
+        ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/interpolated/longitude', data=lon_interp, dtype=np.float64)
+        ds.attrs['description'] = 'Interpolated geographic longitude'
+        ds.attrs['units'] = 'degrees'
+
+        ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/interpolated/altitude', data=alt_interp, dtype=np.float64)
+        ds.attrs['description'] = 'Interpolated geographic altitude'
+        ds.attrs['units'] = 'meters'
+
+    ephemeris_data_h5.close()
+
+
+def fix_ephemeris_txt_files():
+    for rid in range(386, 389):
+        ephemeris_in_path = f'data/apep/2023/ephemeris/Apep1_x{rid}.txt'
+        print(f'Fixing {ephemeris_in_path}...')
+
+        with open(ephemeris_in_path, 'r') as f:
+            lines = f.readlines()
+
+        count = 0
+        line_num = 0
+        with open(ephemeris_in_path, 'w') as f:
+            for line in lines:
+                line_num += 1
+                if len(line.split()) == 4:
+                    f.write(line)
+                else:
+                    count += 1
+                    print(f'  Problem at {line_num}')
+            print(f'  Found and fixed {count} problematic lines.')
+
+
+def get_trajectory(rid: int,
+                   data_type: str = 'interpolated',
+                   cadence_Hz: int = 50
+                   ):
+    dtid = 5000 // cadence_Hz
+    ephemeris_path = '/home2/vanirsej/sailboat/src/sailboat/data/apep/2023/ephemeris.h5'
+    ephemeris_data_h5 = h5py.File(ephemeris_path)[f'36.{rid}/{data_type}']
+    time = np.array(ephemeris_data_h5['time'][::dtid], dtype=np.int64)
+    time = np.array([datetime(2023, 10, 14) + timedelta(microseconds=int(us)) for us in time], dtype='datetime64[us]')
+    glon = np.array(ephemeris_data_h5['longitude'][::dtid], dtype=np.float64)
+    glat = np.array(ephemeris_data_h5['latitude'][::dtid], dtype=np.float64)
+    alt = np.array(ephemeris_data_h5['altitude'][::dtid], dtype=np.float64)
+    return time, glon, glat, alt
+
+
+def plot_trajectories():
+    fig, axs = plt.subplots(3, 2, figsize=(12, 12))
+    for rid in range(386, 389):
+        clr = (0, 0, (rid - 386) / 2)
+        for data_type in ['raw', 'interpolated']:
+            time, glon, glat, alt = get_trajectory(rid, data_type=data_type)
+
+            bad_ids = alt == 0
+            bad_ids |= [t > datetime(2023, 10, 15) for t in time]
+            time = time[~bad_ids]
+            glon = glon[~bad_ids]
+            glat = glat[~bad_ids]
+            alt = alt[~bad_ids]
+
+            if data_type == 'interpolated':
+                lns = '-'
+                lnw = 3
+            else:
+                lns = '-'
+                lnw = 1
+            lbl = f'36.{rid} ({data_type})'
+
+            axs[0, 0].plot(time, glon, label=lbl, linestyle=lns, color=clr, linewidth=lnw)
+            axs[1, 0].plot(time, glat, label=lbl, linestyle=lns, color=clr, linewidth=lnw)
+            axs[2, 0].plot(time, alt / 1e3, label=lbl, linestyle=lns, color=clr, linewidth=lnw)
+            axs[0, 0].set_ylabel('Geographic longitude (deg)')
+            axs[1, 0].set_ylabel('Geographic latitude (deg)')
+            axs[2, 0].set_ylabel('Geographic altitude (km)')
+
+            axs[0, 1].plot(glon, glat, label=lbl, linestyle=lns, color=clr, linewidth=lnw)
+            axs[1, 1].plot(glat, alt / 1e3, label=lbl, linestyle=lns, color=clr, linewidth=lnw)
+            axs[2, 1].plot(glon, alt / 1e3, label=lbl, linestyle=lns, color=clr, linewidth=lnw)
+            axs[0, 1].set_xlabel('Geographic longitude (deg)')
+            axs[0, 1].set_ylabel('Geographic latitude (deg)')
+            axs[1, 1].set_xlabel('Geographic latitude (deg)')
+            axs[1, 1].set_ylabel('Geographic altitude (km)')
+            axs[2, 1].set_xlabel('Geographic longitude (deg)')
+            axs[2, 1].set_ylabel('Geographic altitude (km)')
+    
+    axs[0, 1].legend(loc='upper right')
+    
+    for ax in axs[:, 0]:
+        ax.grid()
+        ax.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%H:%M'))
+        ax.set_xlabel('UTC time on 2023-10-14')
+    
+    for ax in axs[:, 1]:
+        ax.grid()
+
+    fig.suptitle('Apep-1 Ephemeris Data')
+    fig.tight_layout()
+    fig.show()
+
+    plot_path = 'data/apep/2023/ephemeris/ephemeris.png'
+    print(f'Saving {plot_path}...')
+    fig.savefig(plot_path)
+
+        
+        
+

@@ -26,13 +26,13 @@ def trajectory(
     dat_id = 0
     dat_out = np.empty(np.shape(traj_times))
     for traj_time, traj_glon, traj_glat, traj_galt in zip(traj_times, traj_glons, traj_glats, traj_galts):
-        print(f'Current trajectory time: {traj_time}')
+        print(f'Current trajectory time: {traj_time}', end='\r')
 
         # convert input trajectory data to gemini dipole coordinates
         traj_phi, traj_theta = convert.geog2geomag(traj_glon, traj_glat)
         traj_rad = RE + traj_galt
-        q_traj = (RE / traj_rad)**2 * np.cos(traj_theta)
-        p_traj = (traj_rad / RE) / ( np.cos(traj_theta)**2 )
+        q_traj = ((RE / traj_rad) ** 2) * np.cos(traj_theta)
+        p_traj = (traj_rad / RE) / ( np.sin(traj_theta)**2 )
 
         tid = np.argmin(np.abs([traj_time - t for t in sim_times]))
         dt = sim_times[tid] - traj_time
@@ -46,9 +46,9 @@ def trajectory(
             tid0 = tid - 1
             tid1 = tid
         
-        print(f't0: {sim_times[tid0]}')
-        print(f't:  {traj_time}')
-        print(f't1: {sim_times[tid1]}')
+        # print(f't0: {sim_times[tid0]}')
+        # print(f't:  {traj_time}')
+        # print(f't1: {sim_times[tid1]}')
 
         # read new data only if tid has shifted
         time0 = sim_times[tid0]

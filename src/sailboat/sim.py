@@ -51,7 +51,7 @@ def setup(sim_name: str):
 def process(sim_name: str):
     '''
     Series of post-processing tasks.
-    Plor grid and list of variables.
+    Plot grid and list of variables.
     '''
     plot.grid(sim_name)
     plot.variable(sim_name, 'ne')
@@ -59,7 +59,8 @@ def process(sim_name: str):
 
 if __name__ == '__main__':
     from sys import argv
-    if utils.simulation_finished(argv[1]):
+    sim_direc = path.join(GEMINI_SIM_ROOT, argv[1])
+    if utils.simulation_finished(sim_direc):
         process(argv[1])
     else:
         setup(argv[1])

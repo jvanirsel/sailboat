@@ -1,4 +1,4 @@
-from sailboat import HOME
+from sailboat import HOME, utils as su
 from gemini3d import read, utils
 from os import path, scandir
 from datetime import datetime, timedelta
@@ -46,8 +46,11 @@ def check_sim_progress(sim_name):
     print('\n' + '-' * 88)
     print(f'Average time between files:      {np.mean(np.diff(y))/60:.1f} minutes')
     print(f'Latest simulation file:          {latest_file_name} created at {latest_file_time}')
-    print(f'Estimated completion time:       {completion_time}')
-    print(f'Estimated time until completion: {completion_time - datetime.now()}')
+    if not su.simulation_finished(sim_direc):
+        print(f'Estimated completion time:       {completion_time}')
+        print(f'Estimated time until completion: {completion_time - datetime.now()}')
+    else:
+        print('Simulation completed.')
     print('-' * 88 + '\n')
 
 if __name__ == '__main__':

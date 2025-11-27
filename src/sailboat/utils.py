@@ -267,7 +267,5 @@ def simulation_finished(sim_direc):
         return False
     cfg = read.config(sim_direc)
     final_output_filename = utils.datetime2stem(cfg['time'][-1]) + '.h5'
-    if path.isfile(path.join(sim_direc, final_output_filename)):
-        return True
-    return False
+    return path.isfile(path.join(sim_direc, final_output_filename))
 
