@@ -1,66 +1,74 @@
-from sailboat import plot, GEMINI_SIM_ROOT, interpolate, apep, read as sread, sim
+from sailboat import plot, GEMINI_SIM_ROOT, interpolate, apep, read as sread, sim, utils
 from gemini3d import read
 from os import path
 import h5py
 from datetime import datetime, timedelta
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.ndimage import gaussian_filter1d
+
+apep.convert_ephemeris()
+quit()
 
 # apep.convert_ephemeris()
 # apep.plot_trajectories()
+# apep.convert_slp_data()
 # quit()
 
+# for rid in [386, 387, 388]:
+#     time, _, _, alt = apep.get_trajectory(rid)
+#     ind = np.argmax(alt)
+#     t = time[ind]
+#     sod = (t - t.astype('datetime64[D]')).astype(int)/1e6
 
-sim_name = 'apep_2023_veia20_30s'
-sim_direc = path.join(GEMINI_SIM_ROOT, sim_name)
-cfg = read.config(sim_direc)
-eq_direc = cfg['eq_dir']
+#     print('-' * 40 + f' {rid} ' + '-' * 40 + '\n\n.../config.nml:')
+#     print(f'  UTsec0 = {round(sod)-600-7200}')
+#     print('  tdur = 7200')
+#     print('  dtout = 600')
 
-time, glon, glat, alt = apep.get_trajectory(386)
-
-# apep.convert_solar_flux(cfg, cfg, solflux_in_direc='/home2/vanirsej/sailboat/src/sailboat/data/apep/2023/fism2_masked')
-
-# print(cfg.keys())
-
-# xg_comp = read.grid(eq_direc)
-# plot.grid(sim_name, xg_comp)
+#     print('\n\n..._30s/config.nml:')
+#     print(f'  UTsec0 = {round(sod)-600}')
+#     print('  tdur = 1200')
+#     print('  dtout = 30')
 # quit()
 
-# xg = read.grid(sim_direc)
-# xg_eq = read.grid(eq_direc)
+# sim_name = 'apep_2023_veia10_30s'
+# sim_direc = path.join(GEMINI_SIM_ROOT, sim_name)
+# cfg = read.config(sim_direc)
+# eq_direc = cfg['eq_dir']
 
-# plot.grid(sim_name, xg_eq)
+plt.figure(figsize=(12, 12))
 
+for rid in [386, 387, 388]:
+    v = (rid - 386) / 2
+    clr = (v, 0, 0)
 
-# times = cfg['time']
+    sim_name = f'apep1_{rid}_veia20_30s'
+    sim_direc = path.join(GEMINI_SIM_ROOT, sim_name)
+    ne10 = apep.interpolate_trajectory(sim_direc, rid)
+    # ne20 = apep.interpolate_trajectory(sim_direc.replace('veia10','veia20'), 386)
 
-# ephemeris_path = '/home2/vanirsej/sailboat/src/sailboat/data/apep/2023/ephemeris.h5'
-# ephemeris_data_h5 = h5py.File(ephemeris_path)['36.386/interpolated']
-# dtid = 30 * 5000
-# # dtid = 1
-# time = np.array(ephemeris_data_h5['time'][::dtid], dtype=np.int64)
-# glon = ephemeris_data_h5['longitude'][::dtid]
-# glat = ephemeris_data_h5['latitude'][::dtid]
-# alt = ephemeris_data_h5['altitude'][::dtid]
-# # time = np.datetime64('2023-10-14') + time.astype('timedelta64[us]')
-# time = [datetime(2023, 10, 14) + timedelta(microseconds=int(us)) for us in time]
+    time, glon, glat, alt = apep.get_trajectory(rid)
+    _, alt_slp, density_slp, _ = apep.get_slp_data(rid)
+    
+    apogee_ind = np.argmax(alt)
+    alt = alt[apogee_ind:]
+    ne10 = ne10[apogee_ind:]
 
-# def UTsec(time:datetime):
-#     print(time.hour * 3600 + time.minute * 60 + time.second)
+    density_slp = gaussian_filter1d(density_slp, len(density_slp)//100)
 
-# UTsec(time[0])
-# UTsec(time[np.argmax(alt)])
-# UTsec(time[-1])
+    plt.plot(np.log10(ne10), alt/1e3, label=f'36.{rid}', color=clr, linestyle='--')
+    # plt.plot(np.log10(ne20), alt/1e3, label='gemini')
+    plt.plot(np.log10(density_slp), alt_slp/1e3, label='slp', color=clr)
+    plt.xlim([10.5, 12.5])
+    plt.ylim([70, 360])
+    plt.legend()
+    plt.xlabel('log10(ne) [m-3]')
+    plt.ylabel('Altitude [km]')
+    plt.grid()
 
-ne = interpolate.trajectory(sim_direc, time, glon, glat, alt, 'ne')
-
-plt.plot(ne, alt/1e3)
-plt.show()
-plt.savefig('../../plots/36.386_ne_interp.png')
-
-
-# for time in times:
-#     dat = read.frame(sim_direc, time)
-#     for coord in range(1, 4):
-#         plot.quick_summary(cfg, dat, time, slice_coord=coord)
-# plot.grid(sim_name)
+    plt.show()
+plot_path = f'../../plots/36.{rid}_ne_interp_veia20.png'
+print(f'Saving {plot_path}')
+plt.savefig(plot_path)
+plt.close()

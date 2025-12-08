@@ -4,12 +4,13 @@ from os import path
 import numpy as np
 import matplotlib.pyplot as plt
 import xarray as xr
+from datetime import datetime
 
 def quick_summary(cfg: dict,
                   dat: xr.DataArray,
-                  time,
+                  time: datetime,
                   slice_coord: int
-                  ):
+                  ) -> str:
     
     time_str = gu.datetime2stem(time).replace(' ', '0')
     output_flag = cfg.get('flagoutput')
@@ -79,6 +80,8 @@ def quick_summary(cfg: dict,
     plt.savefig(plot_path, dpi=300, bbox_inches='tight')
     plt.close(fig)
 
+    return plot_direc
+
 
 def variable(
         sim_name: str,
@@ -117,11 +120,11 @@ def variable(
         dat_label = f'{variable} ({units})'
         plot_alt_slice(xg, dat, alt_ref, alt_res, plot_path, title, dat_label)
 
-        plot_filename_glon = f'{variable}_glon={glon_ref:.0f}deg_{time_str}.png'
-        plot_path = path.join(plot_direc, plot_filename_glon)
-        title = f'{time_str} (glon = {glon_ref:.0f}+/-{glon_res:.0f}°)'
-        dat_label = f'{variable} ({units})'
-        plot_glon_slice(xg, dat, glon_ref, glon_res, alt_ref, plot_path, title, dat_label)
+        # plot_filename_glon = f'{variable}_glon={glon_ref:.0f}deg_{time_str}.png'
+        # plot_path = path.join(plot_direc, plot_filename_glon)
+        # title = f'{time_str} (glon = {glon_ref:.0f}+/-{glon_res:.0f}°)'
+        # dat_label = f'{variable} ({units})'
+        # plot_glon_slice(xg, dat, glon_ref, glon_res, alt_ref, plot_path, title, dat_label)
 
         plot_filename_mlon = f'{variable}_mlon={mlon_ref:.0f}deg_{time_str}.png'
         plot_path = path.join(plot_direc, plot_filename_mlon)
@@ -131,7 +134,7 @@ def variable(
 
     if make_gifs:
         su.make_gif(plot_direc, suffix=plot_filename_alt[-15:])
-        su.make_gif(plot_direc, suffix=plot_filename_glon[-15:])
+        # su.make_gif(plot_direc, suffix=plot_filename_glon[-15:])
         su.make_gif(plot_direc, suffix=plot_filename_mlon[-15:])
 
 

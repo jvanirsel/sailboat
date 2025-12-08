@@ -45,10 +45,6 @@ def trajectory(
         else:
             tid0 = tid - 1
             tid1 = tid
-        
-        # print(f't0: {sim_times[tid0]}')
-        # print(f't:  {traj_time}')
-        # print(f't1: {sim_times[tid1]}')
 
         # read new data only if tid has shifted
         time0 = sim_times[tid0]
@@ -67,4 +63,6 @@ def trajectory(
         dat_out[dat_id] = data0 + (data1 - data0) *(traj_time - time0) / (time1 - time0)
         dat_id += 1
     
+    print('Done interpolating simulation data...' + ' ' * 40)
+
     return dat_out

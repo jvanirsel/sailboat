@@ -54,7 +54,17 @@ def process(sim_name: str):
     Plot grid and list of variables.
     '''
     plot.grid(sim_name)
-    plot.variable(sim_name, 'ne')
+
+    sim_direc = path.join(GEMINI_SIM_ROOT, sim_name)
+    cfg = read.config(sim_direc)
+    for xid in [1, 2, 3]:
+        for time in cfg['time']:
+            dat = read.frame(sim_direc, time)
+            plot_direc = plot.quick_summary(cfg, dat, time, xid)
+        utils.make_gif(plot_direc)
+
+
+    # plot.variable(sim_name, 'ne')
 
 
 if __name__ == '__main__':

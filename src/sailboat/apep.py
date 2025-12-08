@@ -1,3 +1,4 @@
+from sailboat import interpolate
 from gemini3d import utils
 from os import path, makedirs, listdir
 from datetime import datetime, timedelta
@@ -76,11 +77,11 @@ def convert_solar_flux(cfg: dict,
         h5_name = utils.datetime2stem(sim_time)
         f = h5py.File(path.join(sim_solflux_direc, h5_name + '.h5'), 'w')
         h5_ds = f.create_dataset('/Iinf', data=Iinf)
-        h5_ds.attrs['units'] = 'photons m^-2 s^-1'
+        h5_ds.attrs['units'] = 'photons meters^-2 seconds^-1'
         h5_ds.attrs['description'] = 'masked irradiance in bins defined by solomon & qian (2005)'
         h5_ds.attrs['ref_url'] = 'https://doi.org/10.1029/2005JA011160'
         h5_ds.attrs['wavelength_bins'] = [wvl0, wvl1]
-        h5_ds.attrs['wavelength_units'] = 'm'
+        h5_ds.attrs['wavelength_units'] = 'meters'
         h5_ds.attrs['version'] = '1.1.0'
         h5_ds.attrs['tracked_changes'] = 'nearest neigbour interpolation'
         f.close()
@@ -103,40 +104,55 @@ def convert_solar_flux(cfg: dict,
 def convert_ephemeris():
     min_alt = 50e3 # m
     start_times = [np.datetime64('2023-10-14T16:00:00'), 
-                   np.datetime64('2023-10-14T16:35:00'), 
-                   np.datetime64('2023-10-14T17:10:00')]
-    ephemeris_data_h5 = h5py.File('data/apep/2023/ephemeris.h5', 'w')
+                np.datetime64('2023-10-14T16:35:00'), 
+                np.datetime64('2023-10-14T17:10:00')]
 
-    for rid in range(386, 389):
-        ephemeris_in_path = f'data/apep/2023/ephemeris/Apep1_x{rid}.txt'
+    ephemeris_data_h5 = h5py.File(f'data/apep/ephemeris.h5', 'w')
+    rocket_ids = [386, 387, 388, 392, 393, 394]
+
+    for rid in rocket_ids:
+        if rid < 390:
+            ephemeris_in_path = f'data/apep/2023/ephemeris/Apep1_x{rid}.txt'
+            data = np.loadtxt(ephemeris_in_path, delimiter='\t', dtype=np.float64)
+            time = start_times[rid - 386] + (data[:, 0]*1e6).astype('timedelta64[us]')
+            day0 = time[0].astype('datetime64[D]')
+            us_of_day = (time - day0).astype(np.int64)
+            lat = data[:, 1]
+            lon = data[:, 2] % 360
+            alt = data[:, 3] * 1e3
+
+        else:
+            ephemeris_in_path = f'data/apep/2024/ephemeris/36_{rid}_MainPayload_GPS_Trajectory.dat'
+            data = np.loadtxt(ephemeris_in_path, delimiter='\t', skiprows=1, dtype=str)
+            day0 = np.datetime64('2024-04-08')
+            us_of_day = np.round((data[:, 3].astype(int) * 3600
+                         + data[:, 4].astype(int) * 60
+                         + data[:, 5].astype(np.float64)) * 1e6).astype(np.int64)
+            time = day0 + us_of_day.astype('timedelta64[us]')
+            lat = data[:, 6].astype(np.float64)
+            lon = data[:, 7].astype(np.float64) % 360
+            alt = data[:, 8].astype(np.float64) * 1e3
+
         print(f'Processing {ephemeris_in_path}...')
-        data = np.loadtxt(ephemeris_in_path, delimiter='\t', dtype=np.float64)
-        time = start_times[rid - 386] + (data[:, 0]*1e6).astype('timedelta64[us]')
-        day0 = time[0].astype('datetime64[D]')
-        us_of_day = (time - day0).astype(np.int64)
-
-        lat = data[:, 1]
-        lon = data[:, 2] % 360
-        alt = data[:, 3] * 1e3
         
         ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/raw/time', data=us_of_day, dtype=np.int64)
-        ds.attrs['description'] = f'Microsecond of {day0}'
-        ds.attrs['units'] = 'microseconds'
+        ds.attrs['Description'] = f'Microsecond of {day0}'
+        ds.attrs['Units'] = 'microseconds'
 
         ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/raw/latitude', data=lat, dtype=np.float64)
-        ds.attrs['description'] = 'Geographic latitude'
-        ds.attrs['units'] = 'degrees'
+        ds.attrs['Description'] = 'Geodetic latitude'
+        ds.attrs['Units'] = 'degrees'
 
         ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/raw/longitude', data=lon, dtype=np.float64)
-        ds.attrs['description'] = 'Geographic longitude'
-        ds.attrs['units'] = 'degrees'
+        ds.attrs['Description'] = 'Geodetic longitude'
+        ds.attrs['Units'] = 'degrees'
 
         ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/raw/altitude', data=alt, dtype=np.float64)
-        ds.attrs['description'] = 'Geographic altitude'
-        ds.attrs['units'] = 'meters'
+        ds.attrs['Description'] = 'Geodetic altitude'
+        ds.attrs['Units'] = 'meters'
 
         is_above_min_alt = alt > min_alt
-        is_before_max_time = time < np.datetime64('2023-10-15')
+        is_before_max_time = time < day0 + np.timedelta64(1, 'D')
         ids = is_above_min_alt & is_before_max_time
 
         dt = np.median(np.diff(us_of_day[ids]))
@@ -151,22 +167,81 @@ def convert_ephemeris():
         alt_interp = falt(us_of_day_interp)
 
         ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/interpolated/time', data=us_of_day_interp, dtype=np.int64)
-        ds.attrs['description'] = f'Interpolated microsecond of {day0}'
-        ds.attrs['units'] = 'microseconds'
+        ds.attrs['Description'] = f'Interpolated microsecond of {day0}'
+        ds.attrs['Units'] = 'microseconds'
 
         ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/interpolated/latitude', data=lat_interp, dtype=np.float64)
-        ds.attrs['description'] = 'Interpolated geographic latitude'
-        ds.attrs['units'] = 'degrees'
+        ds.attrs['Description'] = 'Interpolated geodetic latitude'
+        ds.attrs['Units'] = 'degrees'
 
         ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/interpolated/longitude', data=lon_interp, dtype=np.float64)
-        ds.attrs['description'] = 'Interpolated geographic longitude'
-        ds.attrs['units'] = 'degrees'
+        ds.attrs['Description'] = 'Interpolated geodetic longitude'
+        ds.attrs['Units'] = 'degrees'
 
         ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/interpolated/altitude', data=alt_interp, dtype=np.float64)
-        ds.attrs['description'] = 'Interpolated geographic altitude'
-        ds.attrs['units'] = 'meters'
+        ds.attrs['Description'] = 'Interpolated geodetic altitude'
+        ds.attrs['Units'] = 'meters'
 
     ephemeris_data_h5.close()
+
+
+def convert_slp_data():
+    slp_data_h5 = h5py.File('data/apep/2023/slp.h5', 'w')
+
+    for rid in range(386, 389):
+
+        ## get ephemeris data
+        time, _, _, alt = get_trajectory(rid, cadence_Hz=5000)
+
+        ## read slp data, downleg only
+        slp_in_path = f'data/apep/2023/slp/SLP_{rid}_v3_nosmoothing.txt'
+        data = np.loadtxt(slp_in_path, delimiter='\t', dtype=np.float64, skiprows=1)
+        slp_time = data[:, 0] * 1e6 # convert to microseconds
+        slp_alt = data[:, 1] * 1e3 # convert to meters
+        slp_density = data[:, 2]
+        slp_electron_temp = data[:, 3]
+
+        ## change time-of-flight to datetime64 
+        max_alt_id = np.argmax(alt)
+        downleg_alt = alt[max_alt_id:]
+        downleg_time = time[max_alt_id:].astype(np.float64)
+        ind = np.argmin(np.abs(slp_alt[0] - downleg_alt)) # match altitudes at start of slp data
+        t0 = downleg_time[ind]
+        slp_time = np.array(slp_time - slp_time[0] + t0, dtype='datetime64[us]')
+
+        ## save h5 datasets
+        day0 = slp_time[0].astype('datetime64[D]')
+        us_of_day = (slp_time - day0).astype(np.int64)
+
+        ds = slp_data_h5.create_dataset(f'/36.{rid}/time', data=us_of_day, dtype=np.int64)
+        ds.attrs['description'] = f'Microsecond of {day0}'
+        ds.attrs['units'] = 'microseconds'
+
+        ds = slp_data_h5.create_dataset(f'/36.{rid}/altitude', data=slp_alt, dtype=np.float64)
+        ds.attrs['description'] = 'Downleg altitude'
+        ds.attrs['units'] = 'meters'
+
+        ds = slp_data_h5.create_dataset(f'/36.{rid}/ion_density', data=slp_density, dtype=np.float64)
+        ds.attrs['description'] = 'Ion density'
+        ds.attrs['units'] = 'meters-3'
+
+        ds = slp_data_h5.create_dataset(f'/36.{rid}/electron_temperature', data=slp_electron_temp, dtype=np.float64)
+        ds.attrs['description'] = 'Electron temperature'
+        ds.attrs['units'] = 'Kelvin'
+        
+    slp_data_h5.close()
+
+
+def get_slp_data(rid: int,
+                   ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    slp_path = '/home2/vanirsej/sailboat/src/sailboat/data/apep/2023/slp.h5'
+    slp_data_h5 = h5py.File(slp_path)[f'36.{rid}']
+    time = np.array(slp_data_h5['time'], dtype=np.int64)
+    time = np.array([datetime(2023, 10, 14) + timedelta(microseconds=int(us)) for us in time], dtype='datetime64[us]')
+    alt = np.array(slp_data_h5['altitude'], dtype=np.float64)
+    ion_density = np.array(slp_data_h5['ion_density'], dtype=np.float64)
+    electron_temperature = np.array(slp_data_h5['electron_temperature'], dtype=np.float64)
+    return time, alt, ion_density, electron_temperature
 
 
 def fix_ephemeris_txt_files():
@@ -193,7 +268,7 @@ def fix_ephemeris_txt_files():
 def get_trajectory(rid: int,
                    data_type: str = 'interpolated',
                    cadence_Hz: int = 50
-                   ):
+                   ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     dtid = 5000 // cadence_Hz
     ephemeris_path = '/home2/vanirsej/sailboat/src/sailboat/data/apep/2023/ephemeris.h5'
     ephemeris_data_h5 = h5py.File(ephemeris_path)[f'36.{rid}/{data_type}']
@@ -263,5 +338,25 @@ def plot_trajectories():
     fig.savefig(plot_path)
 
         
+def interpolate_trajectory(sim_direc: str,
+                           rid: int
+                           ):
+    
+    variable = 'ne'
+    out_path = path.join(sim_direc, f'interpolated.h5')
+
+    if path.isfile(out_path):
+        data = h5py.File(out_path)[f'/36.{rid}/{variable}'][:]
+    else:
+        data = interpolate.trajectory(sim_direc, *get_trajectory(rid), variables=variable)
+        h5f = h5py.File(out_path, 'w')
         
+        ds = h5f.create_dataset(f'/36.{rid}/{variable}', data=data)
+
+        ds.attrs['description'] = f'Interpolated {variable} along Apep-1 trajectory 36.{rid}'
+        ds.attrs['units'] = 'meters^-3'
+
+        h5f.close()
+
+    return data
 

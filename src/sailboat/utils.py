@@ -1,4 +1,4 @@
-from sailboat import RE
+from sailboat import RE, GEMINI_SIM_ROOT
 from gemini3d import read, utils
 from datetime import datetime
 import requests
@@ -268,4 +268,18 @@ def simulation_finished(sim_direc):
     cfg = read.config(sim_direc)
     final_output_filename = utils.datetime2stem(cfg['time'][-1]) + '.h5'
     return path.isfile(path.join(sim_direc, final_output_filename))
+
+
+# def change_sim_name(old_sim_name: str,
+#                     new_sim_name: str,
+#                     new_eq_direc: str = ''):
+    
+#     sim_direc = path.join(GEMINI_SIM_ROOT, old_sim_name)
+#     old_eq_direc = str(read.config(sim_direc)['eq_dir'])
+#     if not new_eq_direc:
+#         new_eq_direc = old_eq_direc.replace(old_sim_name, new_sim_name)
+#     print(old_eq_direc)
+#     print(new_eq_direc)
+
+
 
