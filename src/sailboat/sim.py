@@ -20,13 +20,13 @@ def setup(sim_name: str):
 
     if not path.isdir(eq_direc):
         makedirs(eq_direc)
-        print(f'Created equilibrium directory: {eq_direc}')
+        print(f' Created equilibrium directory: {eq_direc}')
 
     # check if activity levels match
     if utils.internet_access():
         utils.check_activity(cfg)
     else:
-        print('No internet access; skipped activity levels check...')
+        print(' No internet access; skipped activity levels check...')
 
     # setup equilibrium simulation
     if not utils.simulation_finished(eq_direc):
@@ -37,7 +37,7 @@ def setup(sim_name: str):
         command = 'msub ' + path.join(eq_direc, 'submit.pbs')
         raise FileNotFoundError('Equilibrium simulation setup done. ' \
                                 f'Please run the following command:\n\n{command}\n')
-    print('Equilibrium simulation done...')
+    print(' Equilibrium simulation done...')
 
     # setup simulation
     if not utils.simulation_finished_setup(sim_direc):

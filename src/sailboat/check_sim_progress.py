@@ -7,7 +7,7 @@ import numpy as np
 def check_sim_progress(sim_name):
     # sim_direc_base = path.join(HOME, 'scratch', sim_name)
     scratch_direc = path.join(HOME, 'scratch')
-    sim_direcs = [d for d in listdir(scratch_direc) if d.startswith(sim_name)]
+    sim_direcs = [d for d in listdir(scratch_direc) if d[:-16] == sim_name]
     if len(sim_direcs) == 1:
         sim_direc = path.join(scratch_direc, sim_direcs[0])
     else:
