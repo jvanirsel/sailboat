@@ -1,11 +1,19 @@
 from sailboat import HOME, utils as su
 from gemini3d import read, utils
-from os import path, scandir
+from os import path, scandir, listdir
 from datetime import datetime, timedelta
 import numpy as np
 
 def check_sim_progress(sim_name):
-    sim_direc = path.join(HOME, 'scratch', sim_name)
+    # sim_direc_base = path.join(HOME, 'scratch', sim_name)
+    scratch_direc = path.join(HOME, 'scratch')
+    sim_direcs = [d for d in listdir(scratch_direc) if d.startswith(sim_name)]
+    if len(sim_direcs) == 1:
+        sim_direc = path.join(scratch_direc, sim_direcs[0])
+    else:
+        raise FileExistsError('Two or more simulation directories found.' \
+        ' Please specify further.')
+
     cfg = read.config(sim_direc)
     sim_times = cfg['time']
 
@@ -44,6 +52,7 @@ def check_sim_progress(sim_name):
 
     completion_time = datetime.fromtimestamp(yq + file_data[0, 1])
     print('\n' + '-' * 88)
+    print(f'Simulation directory:            {sim_direc}')
     print(f'Average time between files:      {np.mean(np.diff(y))/60:.1f} minutes')
     print(f'Latest simulation file:          {latest_file_name} created at {latest_file_time}')
     if not su.simulation_finished(sim_direc):

@@ -241,7 +241,7 @@ def check_activity(cfg):
             print(f'Value of f107a in config.nml is {cfg[v]}, but is {activity[v]} for simulation halftime.')
             all_match = False
     if all_match:
-        print('Activity levels in config.nml match www-app3.gfz-potsdam.de values.')
+        print('  Activity levels in config.nml match www-app3.gfz-potsdam.de values.')
 
 
 def internet_access():

@@ -1,4 +1,4 @@
-from sailboat import interpolate
+from sailboat import SAILBOAT_ROOT, interpolate
 from gemini3d import utils
 from os import path, makedirs, listdir
 from datetime import datetime, timedelta
@@ -10,9 +10,10 @@ import h5py
 
 def convert_solar_flux(cfg: dict,
                        xg: dict, # required for setup_functions in config.nml
-                       solflux_in_extension: str = 'nc4',
-                       solflux_in_direc: str = 'data/apep/2023/fism2_masked'
+                       solflux_in_extension: str = 'nc4'
                        ):
+
+    solflux_in_direc = path.join(SAILBOAT_ROOT, 'data', 'apep', '2023', 'fism2_masked')
 
     ## read simulation data
     sim_direc = path.dirname(cfg['nml'])
@@ -103,23 +104,24 @@ def convert_solar_flux(cfg: dict,
 
 def convert_ephemeris():
     min_alt = 50e3 # m
-    start_times = [np.datetime64('2023-10-14T16:00:00'), 
-                np.datetime64('2023-10-14T16:35:00'), 
-                np.datetime64('2023-10-14T17:10:00')]
+    start_times = [np.datetime64('2023-10-14T16:00:00'),
+                   np.datetime64('2023-10-14T16:35:00'),
+                   np.datetime64('2023-10-14T17:10:00')]
 
     ephemeris_data_h5 = h5py.File(f'data/apep/ephemeris.h5', 'w')
     rocket_ids = [386, 387, 388, 392, 393, 394]
 
     for rid in rocket_ids:
+
         if rid < 390:
             ephemeris_in_path = f'data/apep/2023/ephemeris/Apep1_x{rid}.txt'
             data = np.loadtxt(ephemeris_in_path, delimiter='\t', dtype=np.float64)
             time = start_times[rid - 386] + (data[:, 0]*1e6).astype('timedelta64[us]')
             day0 = time[0].astype('datetime64[D]')
             us_of_day = (time - day0).astype(np.int64)
-            lat = data[:, 1]
-            lon = data[:, 2] % 360
-            alt = data[:, 3] * 1e3
+            gdlat = data[:, 1]
+            gdlon = data[:, 2] % 360
+            gdalt = data[:, 3] * 1e3
 
         else:
             ephemeris_in_path = f'data/apep/2024/ephemeris/36_{rid}_MainPayload_GPS_Trajectory.dat'
@@ -129,38 +131,43 @@ def convert_ephemeris():
                          + data[:, 4].astype(int) * 60
                          + data[:, 5].astype(np.float64)) * 1e6).astype(np.int64)
             time = day0 + us_of_day.astype('timedelta64[us]')
-            lat = data[:, 6].astype(np.float64)
-            lon = data[:, 7].astype(np.float64) % 360
-            alt = data[:, 8].astype(np.float64) * 1e3
+            gdlat = data[:, 6].astype(np.float64)
+            gdlon = data[:, 7].astype(np.float64) % 360
+            gdalt = data[:, 8].astype(np.float64) * 1e3
 
         print(f'Processing {ephemeris_in_path}...')
-        
+        print('Writing raw data...', end='')
+
         ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/raw/time', data=us_of_day, dtype=np.int64)
         ds.attrs['Description'] = f'Microsecond of {day0}'
         ds.attrs['Units'] = 'microseconds'
 
-        ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/raw/latitude', data=lat, dtype=np.float64)
+        ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/raw/latitude', data=gdlat, dtype=np.float64)
         ds.attrs['Description'] = 'Geodetic latitude'
         ds.attrs['Units'] = 'degrees'
 
-        ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/raw/longitude', data=lon, dtype=np.float64)
+        ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/raw/longitude', data=gdlon, dtype=np.float64)
         ds.attrs['Description'] = 'Geodetic longitude'
         ds.attrs['Units'] = 'degrees'
 
-        ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/raw/altitude', data=alt, dtype=np.float64)
+        ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/raw/altitude', data=gdalt, dtype=np.float64)
         ds.attrs['Description'] = 'Geodetic altitude'
         ds.attrs['Units'] = 'meters'
 
-        is_above_min_alt = alt > min_alt
-        is_before_max_time = time < day0 + np.timedelta64(1, 'D')
+        print('done')
+        print('Writing interpolated data...', end='')
+
+        is_above_min_alt = gdalt > min_alt
+        is_before_max_time = time < (day0 + np.timedelta64(1, 'D'))
         ids = is_above_min_alt & is_before_max_time
 
-        dt = np.median(np.diff(us_of_day[ids]))
-        us_of_day_interp = np.arange(np.min(us_of_day[ids]), np.max(us_of_day[ids]) + dt/2, dt, dtype=np.int64)
+        # dt = np.median(np.diff(us_of_day[ids]))
+        dt = 0.05 * 1e6 # 20 Hz
+        us_of_day_interp = np.arange(np.min(us_of_day[ids]), np.max(us_of_day[ids]), dt, dtype=np.int64)
 
-        flat = interp1d(us_of_day[ids], lat[ids])
-        flon = interp1d(us_of_day[ids], lon[ids])
-        falt = interp1d(us_of_day[ids], alt[ids])
+        flat = interp1d(us_of_day[ids], gdlat[ids], 'linear')
+        flon = interp1d(us_of_day[ids], gdlon[ids], 'linear')
+        falt = interp1d(us_of_day[ids], gdalt[ids], 'linear')
 
         lat_interp = flat(us_of_day_interp)
         lon_interp = flon(us_of_day_interp)
@@ -182,30 +189,38 @@ def convert_ephemeris():
         ds.attrs['Description'] = 'Interpolated geodetic altitude'
         ds.attrs['Units'] = 'meters'
 
+        print('done')
+
     ephemeris_data_h5.close()
 
 
 def convert_slp_data():
-    slp_data_h5 = h5py.File('data/apep/2023/slp.h5', 'w')
+    slp_data_h5 = h5py.File('data/apep/slp.h5', 'w')
+    rocket_ids = [386, 387, 388, 392, 393, 394]
 
-    for rid in range(386, 389):
+    for rid in rocket_ids:
 
         ## get ephemeris data
-        time, _, _, alt = get_trajectory(rid, cadence_Hz=5000)
+        time, _, _, gdalt = get_trajectory(rid)
 
         ## read slp data, downleg only
-        slp_in_path = f'data/apep/2023/slp/SLP_{rid}_v3_nosmoothing.txt'
+        if rid < 390:
+            slp_in_path = f'data/apep/2023/slp/SLP_{rid}_v3_nosmoothing.txt'
+        else:
+            slp_in_path = f'data/apep/2024/slp/SLP_{rid}_v3_fullflight_7ptmovingmean.txt'
+        print(f'Processing {slp_in_path}...')
+
         data = np.loadtxt(slp_in_path, delimiter='\t', dtype=np.float64, skiprows=1)
         slp_time = data[:, 0] * 1e6 # convert to microseconds
-        slp_alt = data[:, 1] * 1e3 # convert to meters
-        slp_density = data[:, 2]
+        slp_gdalt = data[:, 1] * 1e3 # convert to meters
+        slp_ion_density = data[:, 2]
         slp_electron_temp = data[:, 3]
 
-        ## change time-of-flight to datetime64 
-        max_alt_id = np.argmax(alt)
-        downleg_alt = alt[max_alt_id:]
+        ## change time-of-flight to datetime64
+        max_alt_id = np.argmax(gdalt)
+        downleg_alt = gdalt[max_alt_id:]
         downleg_time = time[max_alt_id:].astype(np.float64)
-        ind = np.argmin(np.abs(slp_alt[0] - downleg_alt)) # match altitudes at start of slp data
+        ind = np.argmin(np.abs(slp_gdalt[0] - downleg_alt)) # match altitudes at start of slp data
         t0 = downleg_time[ind]
         slp_time = np.array(slp_time - slp_time[0] + t0, dtype='datetime64[us]')
 
@@ -217,11 +232,11 @@ def convert_slp_data():
         ds.attrs['description'] = f'Microsecond of {day0}'
         ds.attrs['units'] = 'microseconds'
 
-        ds = slp_data_h5.create_dataset(f'/36.{rid}/altitude', data=slp_alt, dtype=np.float64)
+        ds = slp_data_h5.create_dataset(f'/36.{rid}/altitude', data=slp_gdalt, dtype=np.float64)
         ds.attrs['description'] = 'Downleg altitude'
         ds.attrs['units'] = 'meters'
 
-        ds = slp_data_h5.create_dataset(f'/36.{rid}/ion_density', data=slp_density, dtype=np.float64)
+        ds = slp_data_h5.create_dataset(f'/36.{rid}/ion_density', data=slp_ion_density, dtype=np.float64)
         ds.attrs['description'] = 'Ion density'
         ds.attrs['units'] = 'meters-3'
 
@@ -234,14 +249,14 @@ def convert_slp_data():
 
 def get_slp_data(rid: int,
                    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    slp_path = '/home2/vanirsej/sailboat/src/sailboat/data/apep/2023/slp.h5'
+    slp_path = '/home2/vanirsej/sailboat/src/sailboat/data/apep/slp.h5'
     slp_data_h5 = h5py.File(slp_path)[f'36.{rid}']
     time = np.array(slp_data_h5['time'], dtype=np.int64)
     time = np.array([datetime(2023, 10, 14) + timedelta(microseconds=int(us)) for us in time], dtype='datetime64[us]')
-    alt = np.array(slp_data_h5['altitude'], dtype=np.float64)
+    gdalt = np.array(slp_data_h5['altitude'], dtype=np.float64)
     ion_density = np.array(slp_data_h5['ion_density'], dtype=np.float64)
     electron_temperature = np.array(slp_data_h5['electron_temperature'], dtype=np.float64)
-    return time, alt, ion_density, electron_temperature
+    return time, gdalt, ion_density, electron_temperature
 
 
 def fix_ephemeris_txt_files():
@@ -267,96 +282,115 @@ def fix_ephemeris_txt_files():
 
 def get_trajectory(rid: int,
                    data_type: str = 'interpolated',
-                   cadence_Hz: int = 50
                    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    dtid = 5000 // cadence_Hz
-    ephemeris_path = '/home2/vanirsej/sailboat/src/sailboat/data/apep/2023/ephemeris.h5'
+    
+    ephemeris_path = f'/home2/vanirsej/sailboat/src/sailboat/data/apep/ephemeris.h5'
     ephemeris_data_h5 = h5py.File(ephemeris_path)[f'36.{rid}/{data_type}']
-    time = np.array(ephemeris_data_h5['time'][::dtid], dtype=np.int64)
+    time = np.array(ephemeris_data_h5['time'], dtype=np.int64)
     time = np.array([datetime(2023, 10, 14) + timedelta(microseconds=int(us)) for us in time], dtype='datetime64[us]')
-    glon = np.array(ephemeris_data_h5['longitude'][::dtid], dtype=np.float64)
-    glat = np.array(ephemeris_data_h5['latitude'][::dtid], dtype=np.float64)
-    alt = np.array(ephemeris_data_h5['altitude'][::dtid], dtype=np.float64)
-    return time, glon, glat, alt
+    gdlon = np.array(ephemeris_data_h5['longitude'], dtype=np.float64)
+    gdlat = np.array(ephemeris_data_h5['latitude'], dtype=np.float64)
+    gdalt = np.array(ephemeris_data_h5['altitude'], dtype=np.float64)
+    return time, gdlon, gdlat, gdalt
 
 
 def plot_trajectories():
-    fig, axs = plt.subplots(3, 2, figsize=(12, 12))
-    for rid in range(386, 389):
-        clr = (0, 0, (rid - 386) / 2)
-        for data_type in ['raw', 'interpolated']:
-            time, glon, glat, alt = get_trajectory(rid, data_type=data_type)
-
-            bad_ids = alt == 0
-            bad_ids |= [t > datetime(2023, 10, 15) for t in time]
-            time = time[~bad_ids]
-            glon = glon[~bad_ids]
-            glat = glat[~bad_ids]
-            alt = alt[~bad_ids]
-
-            if data_type == 'interpolated':
-                lns = '-'
-                lnw = 3
-            else:
-                lns = '-'
-                lnw = 1
-            lbl = f'36.{rid} ({data_type})'
-
-            axs[0, 0].plot(time, glon, label=lbl, linestyle=lns, color=clr, linewidth=lnw)
-            axs[1, 0].plot(time, glat, label=lbl, linestyle=lns, color=clr, linewidth=lnw)
-            axs[2, 0].plot(time, alt / 1e3, label=lbl, linestyle=lns, color=clr, linewidth=lnw)
-            axs[0, 0].set_ylabel('Geographic longitude (deg)')
-            axs[1, 0].set_ylabel('Geographic latitude (deg)')
-            axs[2, 0].set_ylabel('Geographic altitude (km)')
-
-            axs[0, 1].plot(glon, glat, label=lbl, linestyle=lns, color=clr, linewidth=lnw)
-            axs[1, 1].plot(glat, alt / 1e3, label=lbl, linestyle=lns, color=clr, linewidth=lnw)
-            axs[2, 1].plot(glon, alt / 1e3, label=lbl, linestyle=lns, color=clr, linewidth=lnw)
-            axs[0, 1].set_xlabel('Geographic longitude (deg)')
-            axs[0, 1].set_ylabel('Geographic latitude (deg)')
-            axs[1, 1].set_xlabel('Geographic latitude (deg)')
-            axs[1, 1].set_ylabel('Geographic altitude (km)')
-            axs[2, 1].set_xlabel('Geographic longitude (deg)')
-            axs[2, 1].set_ylabel('Geographic altitude (km)')
+    rocket_sets = [[386, 387, 388], [392, 393, 394]]
     
-    axs[0, 1].legend(loc='upper right')
-    
-    for ax in axs[:, 0]:
-        ax.grid()
-        ax.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%H:%M'))
-        ax.set_xlabel('UTC time on 2023-10-14')
-    
-    for ax in axs[:, 1]:
-        ax.grid()
+    for rocket_ids in rocket_sets:
+        fig, axs = plt.subplots(3, 2, figsize=(12, 12))
+        i = 0
+        for rid in rocket_ids:    
+            clr = (0, 0, i / 2)
+            for data_type in ['raw', 'interpolated']:
+                time, glon, glat, alt = get_trajectory(rid, data_type=data_type)
 
-    fig.suptitle('Apep-1 Ephemeris Data')
-    fig.tight_layout()
-    fig.show()
+                bad_ids = alt == 0
+                bad_ids |= [t > datetime(2023, 10, 15) for t in time]
+                time = time[~bad_ids]
+                glon = glon[~bad_ids]
+                glat = glat[~bad_ids]
+                alt = alt[~bad_ids]
 
-    plot_path = 'data/apep/2023/ephemeris/ephemeris.png'
-    print(f'Saving {plot_path}...')
-    fig.savefig(plot_path)
+                if data_type == 'interpolated':
+                    lns = '-'
+                    lnw = 3
+                else:
+                    lns = '-'
+                    lnw = 1
+                lbl = f'36.{rid} ({data_type})'
+
+                axs[0, 0].plot(time, glon, label=lbl, linestyle=lns, color=clr, linewidth=lnw)
+                axs[1, 0].plot(time, glat, label=lbl, linestyle=lns, color=clr, linewidth=lnw)
+                axs[2, 0].plot(time, alt / 1e3, label=lbl, linestyle=lns, color=clr, linewidth=lnw)
+                axs[0, 0].set_ylabel('Geographic longitude (deg)')
+                axs[1, 0].set_ylabel('Geographic latitude (deg)')
+                axs[2, 0].set_ylabel('Geographic altitude (km)')
+
+                axs[0, 1].plot(glon, glat, label=lbl, linestyle=lns, color=clr, linewidth=lnw)
+                axs[1, 1].plot(glat, alt / 1e3, label=lbl, linestyle=lns, color=clr, linewidth=lnw)
+                axs[2, 1].plot(glon, alt / 1e3, label=lbl, linestyle=lns, color=clr, linewidth=lnw)
+                axs[0, 1].set_xlabel('Geographic longitude (deg)')
+                axs[0, 1].set_ylabel('Geographic latitude (deg)')
+                axs[1, 1].set_xlabel('Geographic latitude (deg)')
+                axs[1, 1].set_ylabel('Geographic altitude (km)')
+                axs[2, 1].set_xlabel('Geographic longitude (deg)')
+                axs[2, 1].set_ylabel('Geographic altitude (km)')
+            i += 1
+        
+        axs[0, 1].legend(loc='upper right')
+        
+        if rid < 390:
+            date_string = '2023-10-14'
+        else:
+            date_string = '2024-04-08'
+
+        for ax in axs[:, 0]:
+            ax.grid()
+            ax.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%H:%M'))
+            ax.set_xlabel(f'UTC time on {date_string}')
+        
+        for ax in axs[:, 1]:
+            ax.grid()
+
+        fig.suptitle(f'Apep-{1 + int(rid > 390)} Ephemeris Data')
+        fig.tight_layout()
+        fig.show()
+
+        plot_path = f'data/apep/{date_string[:4]}/ephemeris/ephemeris.png'
+        print(f'Saving {plot_path}...')
+        fig.savefig(plot_path)
 
         
 def interpolate_trajectory(sim_direc: str,
                            rid: int
                            ):
     
-    variable = 'ne'
+    variables = ['electron_density',
+                 'electron_temperature']
+    units = {'electron_density': 'meters^-3',
+             'electron_temperature': 'Kelvin'}
     out_path = path.join(sim_direc, f'interpolated.h5')
 
+    file_found = False
     if path.isfile(out_path):
-        data = h5py.File(out_path)[f'/36.{rid}/{variable}'][:]
+        h5f = h5py.File(out_path, 'r')
+        file_found = True
+
+    rocket_name = f'36.{rid}'
+    if file_found and rocket_name in h5f:
+        data = np.array([h5f[f'/{rocket_name}/{var}'] for var in variables]).transpose()
     else:
-        data = interpolate.trajectory(sim_direc, *get_trajectory(rid), variables=variable)
+        data = interpolate.trajectory(sim_direc, *get_trajectory(rid), variables=variables)
         h5f = h5py.File(out_path, 'w')
         
-        ds = h5f.create_dataset(f'/36.{rid}/{variable}', data=data)
-
-        ds.attrs['description'] = f'Interpolated {variable} along Apep-1 trajectory 36.{rid}'
-        ds.attrs['units'] = 'meters^-3'
+        vid = 0
+        for var in variables:
+            ds = h5f.create_dataset(f'/{rocket_name}/{var}', data=data[:, vid])
+            ds.attrs['description'] = f'Interpolated {var.replace("_", " ")} along Apep-{1+int(rid<390)} trajectory 36.{rid}'
+            ds.attrs['units'] = units[var]
+            vid += 1
 
         h5f.close()
-
     return data
 

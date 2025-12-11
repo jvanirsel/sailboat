@@ -101,11 +101,13 @@ def pbs(
         email: str = ''
         ):
 
+    timestamp = datetime.strftime(datetime.now(), '_%Y%m%dT%H%M%S')
+
     sim_direc = path.normpath(sim_direc)
     sim_name = path.basename(sim_direc)
     log_direc = path.join(HOME, 'logs')
     scratch_direc = path.join(HOME, 'scratch')
-    work_direc = path.join(scratch_direc, sim_name)
+    work_direc = path.join(scratch_direc, sim_name + timestamp)
 
     if not path.isdir(sim_direc):
         raise FileNotFoundError(f'Cannot find simulation directory: {sim_direc}')
@@ -152,10 +154,11 @@ def pbs(
         f.write('\n')
 
         f.write('Commands to run:\n')
-        f.write(f'cp -r {sim_direc} {scratch_direc}\n')
+        f.write(f'mkdir {work_direc}\n')
+        f.write(f'cp -r {sim_direc}/* {work_direc}\n')
         f.write(f'cp {gemini_bin_path} {work_direc}\n')
         f.write(f'cd {work_direc}\n')
         f.write(f'mpiexec gemini.bin . > {sim_name}.out 2> {sim_name}.err\n')
-        f.write(f'cp -nr {work_direc} {path.dirname(sim_direc)}\n')
+        f.write(f'cp -nr {work_direc}/* {sim_direc}\n')
 
 
