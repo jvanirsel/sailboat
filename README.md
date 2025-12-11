@@ -1,5 +1,5 @@
-# SAILboat
-A personal workspace for SAIL related GEMINI or general computational work. Below is a collection of instructions and guides. For questions or comments, you can email me at vanirsej@erau.edu.
+# Space and Atmospheric Instrumentation Lab (SAIL): Boundary conditioned Optimization Analysis Techniques (BOAT)
+A collection of tools for [SAIL](https://daytonabeach.erau.edu/college-arts-sciences/research/sail/) related to [GEMINI](https://github.com/gemini3d) or other general numerical modeling work. Below is a set of instructions and guides. For questions or comments, you can email me at vanirsej@erau.edu.
 
 ---
 ---
