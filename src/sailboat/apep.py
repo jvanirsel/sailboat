@@ -1,41 +1,43 @@
 from sailboat import SAILBOAT_ROOT, interpolate
 from gemini3d import utils
-from os import path, makedirs, listdir
-from datetime import datetime, timedelta
+from datetime import datetime
 from scipy.constants import h, c
 from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from matplotlib.axes import Axes
 import numpy as np
 import h5py
+from pathlib import Path
 
-def convert_solar_flux(cfg: dict,
-                       xg: dict, # required for setup_functions in config.nml
-                       solflux_in_extension: str = 'nc4'
-                       ):
+def convert_solar_flux(
+        cfg: dict,
+        xg: dict, # required for setup_functions in config.nml
+        solflux_in_extension: str = 'nc4'
+        ) -> None:
 
-    solflux_in_direc = path.join(SAILBOAT_ROOT, 'data', 'apep', '2023', 'fism2_masked')
+    solflux_in_direc = Path(SAILBOAT_ROOT, 'data', 'apep', '2023', 'fism2_masked')
 
     ## read simulation data
-    sim_direc = path.dirname(cfg['nml'])
+    sim_direc = Path(cfg['nml']).parent
     try:
-        sim_solflux_direc = path.join(sim_direc, cfg['solfluxdir'])
+        sim_solflux_direc = Path(sim_direc, cfg['solfluxdir'])
         sim_solflux_dt = cfg['dtsolflux']
     except KeyError:
         raise KeyError('solfluxdir and/or dtsolflux not found in config file. \
                        Please adjust gemini3d/config.py to include solflux namelist.')
-    if not path.isdir(sim_solflux_direc):
-        makedirs(sim_solflux_direc)
-    sim_times = []
+    sim_solflux_direc.mkdir(exist_ok=True)
+    sim_times: list[datetime] = []
     t = cfg['time'][0]
     while t <= cfg['time'][-1]:
         sim_times.append(t)
         t += sim_solflux_dt
 
     ## read input filenames
-    solflux_filenames = [f for f in listdir(solflux_in_direc) if f.endswith('.' + solflux_in_extension)]
+    solflux_filenames =  [f for f in solflux_in_direc.iterdir() if f.is_file() and f.suffix == f'.{solflux_in_extension}']
     if not solflux_filenames:
         raise FileNotFoundError(f'No .nc4 files found in {solflux_in_direc}')
-    solflux_times = [datetime.strptime(f[13:28], '%Y%m%d_%H%M%S') for f in solflux_filenames]
+    solflux_times = [datetime.strptime(f.name[13:28], '%Y%m%d_%H%M%S') for f in solflux_filenames]
     if solflux_times[0] - sim_solflux_dt > sim_times[0] or \
        solflux_times[-1] + sim_solflux_dt < sim_times[-1]:
         raise ValueError('Solar flux data out of simulation time range\n' \
@@ -43,13 +45,17 @@ def convert_solar_flux(cfg: dict,
                          f'  Solar flux time range: {solflux_times[0]} -- {solflux_times[-1]}')
 
     ## read solar flux grid and wavelength data
-    solflux_data = h5py.File(path.join(solflux_in_direc, solflux_filenames[0]))
-    solflux_tgcm_data = solflux_data['sb_tgcm'] # first 22 tgcm spectral bins match gemini bins
-    glat = np.array(solflux_data['Lat'][:], dtype=np.float64) # degrees
-    glon = np.array(solflux_data['Lon'][:], dtype=np.float64) # degrees
-    wvl0 = np.array(solflux_tgcm_data['Start_wavelength'][:22], dtype=np.float64) * 1e-9 # m
-    wvl1 = np.array(solflux_tgcm_data['End_wavelength'][:22], dtype=np.float64) * 1e-9 # m
-    
+    solflux_path = Path(solflux_in_direc, solflux_filenames[0])
+    with h5py.File(solflux_path, 'r') as solflux_data:
+        solflux_tgcm_data = solflux_data['sb_tgcm'] # first 22 tgcm spectral bins match gemini bins
+        assert isinstance(solflux_tgcm_data, h5py.Group)  # narrows type for pylance checker
+        glat = np.array(solflux_data['Lat'], dtype=np.float64) # degrees
+        glon = np.array(solflux_data['Lon'], dtype=np.float64) # degrees
+        wvl0 = np.array(solflux_tgcm_data['Start_wavelength'], dtype=np.float64)
+        wvl1 = np.array(solflux_tgcm_data['End_wavelength'], dtype=np.float64)
+        wvl0 = wvl0[:22] * 1e-9 # m
+        wvl1 = wvl1[:22] * 1e-9 # m
+
     ## calculate average photon energy per spectral bin to convert W/m2 to photons/m2/s
     avg_photon_energy = h * c * np.log(wvl1 / wvl0) / (wvl1 - wvl0) # J (<E> = h c <1 / wvl>)
 
@@ -64,69 +70,68 @@ def convert_solar_flux(cfg: dict,
 
         ## nearest neighbour time interp
         tid = np.argmin(np.abs([(sim_time - t).total_seconds() for t in solflux_times]))
-        solflux_path = path.join(solflux_in_direc, solflux_filenames[tid])
-        solflux_data = h5py.File(solflux_path)
-        solflux_tgcm_data = solflux_data['sb_tgcm']
+        solflux_path = Path(solflux_in_direc, solflux_filenames[tid])
+        with h5py.File(solflux_path, 'r') as solflux_data:
+            solflux_tgcm_data = solflux_data['sb_tgcm']
+            assert isinstance(solflux_tgcm_data, h5py.Group)
 
-        ## read irradiance data
-        irr = np.array(solflux_tgcm_data['msk_irradiance_tlsm'][:, :, :22], dtype=np.float64) # W/m2
-        irr = irr / avg_photon_energy # photons/m2/s
-        irr = irr[:, glon_ids, :].transpose(1,0,2) # llon x llat x 22
-        Iinf = np.array(irr.transpose(2, 1, 0)) # preserve irr.shape when read by fortran
+            ## read irradiance data
+            irr = np.array(solflux_tgcm_data['msk_irradiance_tlsm'], dtype=np.float64) # W/m2
+            irr = irr[:, :, :22]
+            irr = irr / avg_photon_energy # photons/m2/s
+            irr = irr[:, glon_ids, :].transpose(1,0,2) # llon x llat x 22
+            Iinf = np.array(irr.transpose(2, 1, 0)) # preserve irr.shape when read by fortran
 
         ## save to hdf5
         h5_name = utils.datetime2stem(sim_time)
-        f = h5py.File(path.join(sim_solflux_direc, h5_name + '.h5'), 'w')
-        h5_ds = f.create_dataset('/Iinf', data=Iinf)
-        h5_ds.attrs['units'] = 'photons meters^-2 seconds^-1'
-        h5_ds.attrs['description'] = 'masked irradiance in bins defined by solomon & qian (2005)'
-        h5_ds.attrs['ref_url'] = 'https://doi.org/10.1029/2005JA011160'
-        h5_ds.attrs['wavelength_bins'] = [wvl0, wvl1]
-        h5_ds.attrs['wavelength_units'] = 'meters'
-        h5_ds.attrs['version'] = '1.1.0'
-        h5_ds.attrs['tracked_changes'] = 'nearest neigbour interpolation'
-        f.close()
+        with h5py.File(Path(sim_solflux_direc, h5_name + '.h5'), 'w') as f:
+            h5_ds = f.create_dataset('/Iinf', data=Iinf)
+            h5_ds.attrs['units'] = 'photons meters^-2 seconds^-1'
+            h5_ds.attrs['description'] = 'masked irradiance in bins defined by solomon & qian (2005)'
+            h5_ds.attrs['ref_url'] = 'https://doi.org/10.1029/2005JA011160'
+            h5_ds.attrs['wavelength_bins'] = [wvl0, wvl1]
+            h5_ds.attrs['wavelength_units'] = 'meters'
+            h5_ds.attrs['version'] = '1.1.0'
+            h5_ds.attrs['tracked_changes'] = 'nearest neigbour interpolation'
 
-    ## save simulation size and grid information
-    f = h5py.File(path.join(sim_solflux_direc, 'simsize.h5'), 'w')
-    f.create_dataset('/llat', data=glat.size)
-    f.create_dataset('/llon', data=glon.size)
-    f.close()
+            ## save simulation size and grid information
+        with h5py.File(Path(sim_solflux_direc, 'simsize.h5'), 'w') as f:
+            f.create_dataset('/llat', data=glat.size)
+            f.create_dataset('/llon', data=glon.size)
 
-    f = h5py.File(path.join(sim_solflux_direc, 'simgrid.h5'), 'w')
-    f.create_dataset('/mlat', data=glat) # glat instead of mlat is ok here
-    f.create_dataset('/mlon', data=glon)
-    f.close()
+        with h5py.File(Path(sim_solflux_direc, 'simgrid.h5'), 'w') as f:
+            f.create_dataset('/mlat', data=glat) # glat instead of mlat is ok here
+            f.create_dataset('/mlon', data=glon)
 
-    solflux_data.close()
     print('Done converting solar flux data...' + ' ' * 40)
 
 
-def convert_ephemeris():
+def convert_ephemeris() -> None:
     min_alt = 50e3 # m
     start_times = [np.datetime64('2023-10-14T16:00:00'),
                    np.datetime64('2023-10-14T16:35:00'),
                    np.datetime64('2023-10-14T17:10:00')]
 
-    ephemeris_data_h5 = h5py.File(f'data/apep/ephemeris.h5', 'w')
+    ephemeris_path = Path(SAILBOAT_ROOT, 'data', 'apep', 'ephemeris.h5')
+    ephemeris_data_h5 = h5py.File(ephemeris_path, 'w')
     rocket_ids = [386, 387, 388, 392, 393, 394]
 
     for rid in rocket_ids:
 
         if rid < 390:
-            ephemeris_in_path = f'data/apep/2023/ephemeris/Apep1_x{rid}.txt'
+            ephemeris_in_path = Path(SAILBOAT_ROOT, 'data', 'apep', '2023', 'ephemeris', f'Apep1_x{rid}.txt')
             data = np.loadtxt(ephemeris_in_path, delimiter='\t', dtype=np.float64)
             time = start_times[rid - 386] + (data[:, 0]*1e6).astype('timedelta64[us]')
-            day0 = time[0].astype('datetime64[D]')
+            day0 = np.datetime64(time[0], 'D')
             us_of_day = (time - day0).astype(np.int64)
             gdlat = data[:, 1]
             gdlon = data[:, 2] % 360
             gdalt = data[:, 3] * 1e3
 
         else:
-            ephemeris_in_path = f'data/apep/2024/ephemeris/36_{rid}_MainPayload_GPS_Trajectory.dat'
+            ephemeris_in_path = Path(SAILBOAT_ROOT, 'data', 'apep', '2024', 'ephemeris', f'36_{rid}_MainPayload_GPS_Trajectory.dat')
             data = np.loadtxt(ephemeris_in_path, delimiter='\t', skiprows=1, dtype=str)
-            day0 = np.datetime64('2024-04-08')
+            day0 = np.datetime64('2024-04-08', 'D')
             us_of_day = np.round((data[:, 3].astype(int) * 3600
                          + data[:, 4].astype(int) * 60
                          + data[:, 5].astype(np.float64)) * 1e6).astype(np.int64)
@@ -194,8 +199,9 @@ def convert_ephemeris():
     ephemeris_data_h5.close()
 
 
-def convert_slp_data():
-    slp_data_h5 = h5py.File('data/apep/slp.h5', 'w')
+def convert_slp_data() -> None:
+    slp_path = Path(SAILBOAT_ROOT, 'data', 'apep', 'slp.h5')
+    slp_data_h5 = h5py.File(slp_path, 'w')
     rocket_ids = [386, 387, 388, 392, 393, 394]
 
     for rid in rocket_ids:
@@ -205,9 +211,9 @@ def convert_slp_data():
 
         ## read slp data, downleg only
         if rid < 390:
-            slp_in_path = f'data/apep/2023/slp/SLP_{rid}_v3_nosmoothing.txt'
+            slp_in_path = Path(SAILBOAT_ROOT, 'data', 'apep', '2023', 'slp', f'SLP_{rid}_v3_nosmoothing.txt')
         else:
-            slp_in_path = f'data/apep/2024/slp/SLP_{rid}_v3_fullflight_7ptmovingmean.txt'
+            slp_in_path = Path(SAILBOAT_ROOT, 'data', 'apep', '2024', 'slp', f'SLP_{rid}_v3_fullflight_7ptmovingmean.txt')
         print(f'Processing {slp_in_path}...')
 
         data = np.loadtxt(slp_in_path, delimiter='\t', dtype=np.float64, skiprows=1)
@@ -225,7 +231,7 @@ def convert_slp_data():
         slp_time = np.array(slp_time - slp_time[0] + t0, dtype='datetime64[us]')
 
         ## save h5 datasets
-        day0 = slp_time[0].astype('datetime64[D]')
+        day0 = np.datetime64(slp_time[0], 'D')
         us_of_day = (slp_time - day0).astype(np.int64)
 
         ds = slp_data_h5.create_dataset(f'/36.{rid}/time', data=us_of_day, dtype=np.int64)
@@ -247,21 +253,24 @@ def convert_slp_data():
     slp_data_h5.close()
 
 
-def get_slp_data(rid: int,
-                   ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    slp_path = '/home2/vanirsej/sailboat/src/sailboat/data/apep/slp.h5'
-    slp_data_h5 = h5py.File(slp_path)[f'36.{rid}']
-    time = np.array(slp_data_h5['time'], dtype=np.int64)
-    time = np.array([datetime(2023, 10, 14) + timedelta(microseconds=int(us)) for us in time], dtype='datetime64[us]')
-    gdalt = np.array(slp_data_h5['altitude'], dtype=np.float64)
-    ion_density = np.array(slp_data_h5['ion_density'], dtype=np.float64)
-    electron_temperature = np.array(slp_data_h5['electron_temperature'], dtype=np.float64)
+def get_slp_data(
+        rid: int,
+        ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    slp_path = Path(SAILBOAT_ROOT, 'data', 'apep', 'slp.h5')
+    with h5py.File(slp_path) as f:
+        slp_data_h5 = f[f'36.{rid}']
+        assert(isinstance(slp_data_h5, h5py.Group))
+        time = np.array(slp_data_h5['time'], dtype=np.int64)
+        time = np.datetime64('2023-10-14', 'us') + time.astype('timedelta64[us]')
+        gdalt = np.array(slp_data_h5['altitude'], dtype=np.float64)
+        ion_density = np.array(slp_data_h5['ion_density'], dtype=np.float64)
+        electron_temperature = np.array(slp_data_h5['electron_temperature'], dtype=np.float64)
     return time, gdalt, ion_density, electron_temperature
 
 
-def fix_ephemeris_txt_files():
+def fix_ephemeris_txt_files() -> None:
     for rid in range(386, 389):
-        ephemeris_in_path = f'data/apep/2023/ephemeris/Apep1_x{rid}.txt'
+        ephemeris_in_path = Path(SAILBOAT_ROOT, 'data', 'apep', '2023', 'ephemeris', f'Apep1_x{rid}.txt')
         print(f'Fixing {ephemeris_in_path}...')
 
         with open(ephemeris_in_path, 'r') as f:
@@ -276,29 +285,34 @@ def fix_ephemeris_txt_files():
                     f.write(line)
                 else:
                     count += 1
-                    print(f'  Problem at {line_num}')
-            print(f'  Found and fixed {count} problematic lines.')
+                    print(f' Problem at {line_num}')
+            print(f' Found and fixed {count} problematic lines.')
 
 
-def get_trajectory(rid: int,
-                   data_type: str = 'interpolated',
-                   ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def get_trajectory(
+        rid: int,
+        data_type: str = 'interpolated',
+        ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     
-    ephemeris_path = f'/home2/vanirsej/sailboat/src/sailboat/data/apep/ephemeris.h5'
-    ephemeris_data_h5 = h5py.File(ephemeris_path)[f'36.{rid}/{data_type}']
-    time = np.array(ephemeris_data_h5['time'], dtype=np.int64)
-    time = np.array([datetime(2023, 10, 14) + timedelta(microseconds=int(us)) for us in time], dtype='datetime64[us]')
-    gdlon = np.array(ephemeris_data_h5['longitude'], dtype=np.float64)
-    gdlat = np.array(ephemeris_data_h5['latitude'], dtype=np.float64)
-    gdalt = np.array(ephemeris_data_h5['altitude'], dtype=np.float64)
+    ephemeris_path = Path(SAILBOAT_ROOT, 'data', 'apep', 'ephemeris.h5')
+    with h5py.File(ephemeris_path) as ephemeris_data_h5:
+        ephemeris_data_group = ephemeris_data_h5[f'36.{rid}/{data_type}']
+        assert(isinstance(ephemeris_data_group, h5py.Group))
+        time = np.array(ephemeris_data_group['time'], dtype=np.int64)
+        time = np.datetime64('2023-10-14', 'us') + time.astype('timedelta64[us]')
+        gdlon = np.array(ephemeris_data_group['longitude'], dtype=np.float64)
+        gdlat = np.array(ephemeris_data_group['latitude'], dtype=np.float64)
+        gdalt = np.array(ephemeris_data_group['altitude'], dtype=np.float64)
     return time, gdlon, gdlat, gdalt
 
 
-def plot_trajectories():
+def plot_trajectories() -> None:
     rocket_sets = [[386, 387, 388], [392, 393, 394]]
     
+    first_set = True
     for rocket_ids in rocket_sets:
         fig, axs = plt.subplots(3, 2, figsize=(12, 12))
+
         i = 0
         for rid in rocket_ids:    
             clr = (0, 0, i / 2)
@@ -340,57 +354,63 @@ def plot_trajectories():
         
         axs[0, 1].legend(loc='upper right')
         
-        if rid < 390:
+        if first_set:
             date_string = '2023-10-14'
+            mission_name = 'APEP-1'
         else:
             date_string = '2024-04-08'
+            mission_name = 'APEP-2'
 
         for ax in axs[:, 0]:
+            assert(isinstance(ax, Axes))
             ax.grid()
-            ax.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%H:%M'))
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
             ax.set_xlabel(f'UTC time on {date_string}')
         
         for ax in axs[:, 1]:
+            assert(isinstance(ax, Axes))
             ax.grid()
 
-        fig.suptitle(f'Apep-{1 + int(rid > 390)} Ephemeris Data')
+        fig.suptitle(f'{mission_name} Ephemeris Data')
         fig.tight_layout()
         fig.show()
 
-        plot_path = f'data/apep/{date_string[:4]}/ephemeris/ephemeris.png'
+        plot_path = Path(SAILBOAT_ROOT, 'data', 'apep', date_string[:4], 'ephemeris', 'ephemeris.png')
         print(f'Saving {plot_path}...')
         fig.savefig(plot_path)
 
-        
-def interpolate_trajectory(sim_direc: str,
-                           rid: int
-                           ):
-    
-    variables = ['electron_density',
-                 'electron_temperature']
-    units = {'electron_density': 'meters^-3',
-             'electron_temperature': 'Kelvin'}
-    out_path = path.join(sim_direc, f'interpolated.h5')
+        first_set = False
 
-    file_found = False
-    if path.isfile(out_path):
-        h5f = h5py.File(out_path, 'r')
-        file_found = True
+
+def interpolate_trajectory(
+        sim_direc: Path,
+        rid: int
+        ) -> np.ndarray:
+    
+    variables = {
+        'electron_density',
+        'electron_temperature'
+        }
+    units = {
+        'electron_density': 'meters^-3',
+        'electron_temperature': 'Kelvin'
+        }
+    out_path = Path(sim_direc, 'interpolated.h5')
 
     rocket_name = f'36.{rid}'
-    if file_found and rocket_name in h5f:
-        data = np.array([h5f[f'/{rocket_name}/{var}'] for var in variables]).transpose()
+    if out_path.is_file():
+        with h5py.File(out_path, 'r') as f:
+            data = np.array([f[f'/{rocket_name}/{var}'] for var in variables]).transpose()
     else:
         data = interpolate.trajectory(sim_direc, *get_trajectory(rid), variables=variables)
-        h5f = h5py.File(out_path, 'w')
-        
-        vid = 0
-        for var in variables:
-            ds = h5f.create_dataset(f'/{rocket_name}/{var}', data=data[:, vid])
-            ds.attrs['description'] = f'Interpolated {var.replace("_", " ")} along Apep-{1+int(rid<390)} trajectory 36.{rid}'
-            ds.attrs['units'] = units[var]
-            vid += 1
+        with h5py.File(out_path, 'w') as f:
+            vid = 0
+            for var in variables:
+                ds = f.create_dataset(f'/{rocket_name}/{var}', data=data[:, vid])
+                ds.attrs['description'] = f'Interpolated {var.replace("_", " ")} along Apep-{1+int(rid<390)} trajectory 36.{rid}'
+                ds.attrs['units'] = units[var]
+                vid += 1
 
-        h5f.close()
     return data
+
 

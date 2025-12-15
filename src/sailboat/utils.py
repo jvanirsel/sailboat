@@ -1,37 +1,37 @@
-from sailboat import RE, GEMINI_SIM_ROOT
 from gemini3d import read, utils
 from datetime import datetime
 import requests
 import numpy as np
-from os import path, makedirs, listdir
 import imageio.v3 as iio
+import xarray as xr
+from pathlib import Path
 
 
-def cut_order(data: np.ndarray) -> tuple[np.ndarray, int]:
+def cut_order(
+        data: np.ndarray | xr.DataArray
+        ) -> tuple[np.ndarray | xr.DataArray, int]:
+    
     '''
     Divide data by maximal order of magnitude.
     Returns new data of max order unity and the calculated order.
     '''
-    order = np.floor(np.log10(np.max(np.abs(data))))
-    if ~np.isfinite(order):
+    
+    if isinstance(data, np.ndarray):
+        all_zero = np.count_nonzero(data) == 0
+    elif isinstance(data, xr.DataArray):
+        all_zero = (data.values == 0).all()
+    if all_zero:
         order = 0
+    else:
+        order = np.floor(np.log10(np.max(np.abs(data))))
     return data / (10 ** order), int(order)
 
 
-def dipole_to_geomag(q, p, phi):
-    # q, p, theta > 0
-    theta = np.arcsec((q * p**2)**(1/3))
-    rho = (p * q**2)**(-1/3)
-    r = RE * rho
-
-    alt = r - RE
-    mlon = np.rad2deg(phi)
-    mlat = 90 - np.rad2deg(theta)
-
-    return alt, mlon, mlat
-
-
-def get_activity(date: datetime, f107a_range: int = 81) -> dict:
+def get_activity(
+        date: datetime,
+        f107a_range: int = 81
+        ) -> dict:
+    
     '''
     Calculate the solar activity levels from gfz-potsdam.de.
     Returns dictionary containing:
@@ -40,6 +40,7 @@ def get_activity(date: datetime, f107a_range: int = 81) -> dict:
     - f107a: the n-day averaged F10.7 value set by f107a_range
     - Ap: the daily equivalent planetary amplitude
     '''
+
     num_header_lines = 40
     delta_days = (f107a_range - 1) // 2
     id0 = (date - datetime(1932,1,1)).days + num_header_lines - delta_days
@@ -66,24 +67,18 @@ def get_activity(date: datetime, f107a_range: int = 81) -> dict:
     return {'f107': f107, 'f107p': f107p, 'f107a': f107a, 'Ap': Ap}
 
 
-def md(direc: str) -> str:
-    '''
-    Make directory shortcut
-    '''
-    makedirs(direc, exist_ok=True)
-    return direc
-
-
 def dipole_alt_slice(
         xg: dict,
         data: np.ndarray,
         alt_ref: float,
         alt_res: float = 20e3
         ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    
     '''
     Linearly interpolate data on a tilted dipole grid to a reference altitude.
     Returns lx1 x lx3 data array along with interpolated geographic longitude and latitude arrays.
     '''
+
     lx = xg['lx']
     glon = xg['glon']
     glat = xg['glat']
@@ -136,10 +131,12 @@ def dipole_glon_slice(
         glon_ref: float,
         glon_res: float = 1
         ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    
     '''
     Linearly interpolate data on a tilted dipole grid to a reference geographic longitude.
     Returns lx1 x lx2 data array along with interpolated geographic latitude and altitude arrays.
     '''
+
     lx = xg['lx']
     glon = xg['glon']
     glat = xg['glat']
@@ -186,25 +183,35 @@ def dipole_glon_slice(
     return data_out, glat_out, alt_out
 
 
-def make_gif(plot_direc: str, suffix: str = '.png'):
+def make_gif(
+        plot_direc: Path,
+        suffix: str = '.png',
+        prefix: str = ''
+        ) -> None:
+    
     '''
     Generate gif out of all image files in plot directory with given suffix.
     Frame sequency is that of the sorted list of filenames.
     '''
+
     # collect filenames and sort them
-    image_filenames = [f for f in listdir(plot_direc) if f.endswith(suffix)]
+    image_filenames = [f for f in listdir(plot_direc) if f.endswith(suffix) and f.startswith(prefix)]
     image_filenames.sort()
 
     # generate frames from filenames
-    frames = [iio.imread(path.join(plot_direc, img)) for img in image_filenames]
+    frames = [iio.imread(Path(plot_direc, img)) for img in image_filenames]
 
     # save gif using first filename stem
-    gif_path = path.join(plot_direc, image_filenames[0][:-4] + '.gif')
+    gif_path = Path(plot_direc, image_filenames[0][:-4] + '.gif')
     print(f'Saving {gif_path}...')
     iio.imwrite(gif_path, frames, duration=0.1, loop=0)
 
 
-def si_units(variable: str, order) -> str:
+def si_units(
+        variable: str,
+        order: int
+        ) -> str:
+    
     prefix = {-9: 'n',
               -6: 'µ',
               -3: 'm',
@@ -231,7 +238,10 @@ def si_units(variable: str, order) -> str:
     return prefix[order] + base_units
 
 
-def check_activity(cfg):
+def check_activity(
+        cfg: dict
+        ) -> None:
+    
     times = cfg['time']
     time = times[len(times) // 2]
     activity = get_activity(time)
@@ -244,7 +254,8 @@ def check_activity(cfg):
         print('  Activity levels in config.nml match www-app3.gfz-potsdam.de values.')
 
 
-def internet_access():
+def internet_access() -> None:
+
     try:
         requests.get('https://www.google.com')
     except:
@@ -252,34 +263,27 @@ def internet_access():
     return True
 
 
-def simulation_finished_setup(sim_direc):
-    if not path.isfile(path.join(sim_direc, 'config.nml')):
+def simulation_finished_setup(
+        sim_direc: Path
+        ) -> None:
+    
+    if not Path(sim_direc, 'config.nml').is_file():
         return False
     cfg = read.config(sim_direc)
-    initial_conditions_path = path.join(sim_direc, cfg['indat_file'])
-    return path.isfile(initial_conditions_path)
+    return Path(sim_direc, cfg['indat_file']).is_file()
 
 
-def simulation_finished(sim_direc):
-    if not path.isfile(path.join(sim_direc, 'config.nml')):
+def simulation_finished(
+        sim_direc: Path
+        ) -> None:
+    
+    if not Path(sim_direc, 'config.nml').is_file():
         return False
     if not simulation_finished_setup(sim_direc):
         return False
     cfg = read.config(sim_direc)
     final_output_filename = utils.datetime2stem(cfg['time'][-1]) + '.h5'
-    return path.isfile(path.join(sim_direc, final_output_filename))
-
-
-# def change_sim_name(old_sim_name: str,
-#                     new_sim_name: str,
-#                     new_eq_direc: str = ''):
-    
-#     sim_direc = path.join(GEMINI_SIM_ROOT, old_sim_name)
-#     old_eq_direc = str(read.config(sim_direc)['eq_dir'])
-#     if not new_eq_direc:
-#         new_eq_direc = old_eq_direc.replace(old_sim_name, new_sim_name)
-#     print(old_eq_direc)
-#     print(new_eq_direc)
+    return Path(sim_direc, final_output_filename).is_file()
 
 
 

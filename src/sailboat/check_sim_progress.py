@@ -1,29 +1,31 @@
 from sailboat import HOME, utils as su
 from gemini3d import read, utils
-from os import path, scandir, listdir
 from datetime import datetime, timedelta
 import numpy as np
+from pathlib import Path
 
-def check_sim_progress(sim_name):
+def check_sim_progress(
+        sim_name: str
+        ) -> None:
     # sim_direc_base = path.join(HOME, 'scratch', sim_name)
-    scratch_direc = path.join(HOME, 'scratch')
-    sim_direcs = [d for d in listdir(scratch_direc) if d[:-16] == sim_name]
+    scratch_direc = Path(HOME, 'scratch')
+    sim_direcs = [d for d in scratch_direc.iterdir() if d.name[:-16] == sim_name]
     if len(sim_direcs) == 1:
-        sim_direc = path.join(scratch_direc, sim_direcs[0])
+        sim_direc = Path(scratch_direc, sim_direcs[0])
     else:
         raise FileExistsError('Two or more simulation directories found.' \
         ' Please specify further.')
 
     cfg = read.config(sim_direc)
-    sim_times = cfg['time']
+    sim_times: list[datetime] = cfg['time']
 
     i = 0
     found_file = False
     file_data = np.full((len(sim_times), 2), np.nan)
-    for entry in scandir(sim_direc):
+    for entry in sim_direc.iterdir():
         if entry.name.endswith('000000.h5'):
             found_file = True
-            name = entry.name.replace('.h5', '')
+            name = entry.stem
             date_str, sod_str = name.split('_')
             date = datetime.strptime(date_str, '%Y%m%d')
             file_time = date + timedelta(seconds=float(sod_str))
@@ -48,7 +50,7 @@ def check_sim_progress(sim_name):
 
     a, b = np.polyfit(x, y, 1)
     xq = sim_times[-1].timestamp() - file_data[0, 0]
-    yq = a*xq + b
+    yq = a * xq + b
 
     completion_time = datetime.fromtimestamp(yq + file_data[0, 1])
     print('\n' + '-' * 88)

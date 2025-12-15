@@ -1,12 +1,13 @@
 from os import getenv
+from pathlib import Path
 
 __version__ = '0.1.0'
 
-RE = 6370e3
-HOME = getenv('HOME')
-SAILBOAT_ROOT = getenv('SAILBOAT_ROOT')
-GEMINI_ROOT = getenv('GEMINI_ROOT')
-GEMINI_SIM_ROOT = getenv('GEMINI_SIM_ROOT')
+RE: float = 6370e3
+HOME: Path = getenv('HOME')
+SAILBOAT_ROOT: Path = getenv('SAILBOAT_ROOT')
+GEMINI_ROOT: Path = getenv('GEMINI_ROOT')
+GEMINI_SIM_ROOT: Path = getenv('GEMINI_SIM_ROOT')
 
 if not SAILBOAT_ROOT:
     raise ValueError('Environment variables not found: SAILBOAT_ROOT. ' \
