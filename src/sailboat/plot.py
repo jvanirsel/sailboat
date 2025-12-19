@@ -1,4 +1,4 @@
-from sailboat import GEMINI_SIM_ROOT, RE, utils as su
+from sailboat import GEMINI_SIM_ROOT, _RE, utils as su
 from gemini3d import read, utils as gu
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,6 +7,7 @@ from matplotlib.axes import Axes
 import xarray as xr
 from pathlib import Path
 from datetime import datetime
+import typing as T
 
 def quick_summary(
         cfg: dict,
@@ -241,7 +242,7 @@ def plot_mlon_slice(
 def grid(
         sim_name: str,
         xg_compare: dict = {},
-        coord_type: str ='geographic',
+        coord_type: T.Literal['geographic', 'ecef'] = 'geographic',
         trajectory: np.ndarray = np.empty((3, 0)),
         decimate: int = 10,
         zoom: bool = False
@@ -250,6 +251,8 @@ def grid(
     sffx = ''
     if zoom:
         sffx = '_zoom'
+        decimate = 1
+        do_plot_earth = False
 
     sim_direc = Path(GEMINI_SIM_ROOT, sim_name)
     plot_direc = Path(sim_direc, 'plots')
@@ -273,22 +276,18 @@ def grid(
             coord2 = xg['glat']
             coord3 = xg['alt'] / 1e3
             labels = ["Geographic longitude (°)", "Geographic latitude (°)", "Geographic altitude (km)"]
+
+            trajectory[2, :] /= 1e3
+
         elif coord_type == 'ecef':
-            coord1 = xg['x'] / 1e3
-            coord2 = xg['y'] / 1e3
-            coord3 = xg['z'] / 1e3
+            coord1 = xg['glon']
+            coord2 = xg['glat']
+            coord3 = xg['alt']
+            coord1, coord2, coord3 = su.geog_to_ecef(coord1, coord2, coord3, units='km')
             labels = ["ECEF X (km)", "ECEF Y (km)", "ECEF Z (km)"]
 
-            ### FIX FOR GEODETIC
-            phi = trajectory[0, :] * np.pi / 180
-            theta = (90 - trajectory[1, :]) * np.pi / 180
-            r = (RE + trajectory[2, :]) / 1e3
-
-            trajectory[0, :] = r * np.cos(phi+np.pi/2) * np.sin(theta)
-            trajectory[1, :] = r * np.sin(phi+np.pi/2) * np.sin(theta)
-            trajectory[2, :] = r * np.cos(theta)
-        else:
-            raise ValueError(f'Unknown coord_type {coord_type}')
+            trajectory_X, trajectory_Y, trajectory_Z = su.geog_to_ecef(*trajectory, units='km')
+            trajectory = np.vstack([trajectory_X, trajectory_Y, trajectory_Z])
         
         if i==0:
             cl = 'k'
@@ -299,7 +298,7 @@ def grid(
         for vid in range(4):
             ax = axs[vid // 2, vid % 2]
 
-            if coord_type == 'ecef':
+            if coord_type == 'ecef' and do_plot_earth:
                 ax.plot_surface(*earth(), alpha=0.5)
 
             for ix1 in list(range(0, lx[0], decimate)) + [lx[0]-1]:
@@ -334,7 +333,7 @@ def grid(
             i += 1
 
             if trajectory.shape[1] > 0:
-                ax.plot(trajectory[0, :], trajectory[1, :], trajectory[2, :] / 1e3, 'm', label='trajectory')
+                ax.plot(trajectory[0, :], trajectory[1, :], trajectory[2, :], 'm', label='trajectory')
 
             if vid == 0:
                 ax.set_xticklabels([])
@@ -402,9 +401,9 @@ def earth(
     u = np.linspace(0, 2 * np.pi, 100)
     v = np.linspace(0, np.pi, 100)
 
-    x = RE * np.outer(np.cos(u), np.sin(v)) / scl
-    y = RE * np.outer(np.sin(u), np.sin(v)) / scl
-    z = RE * np.outer(np.ones_like(u), np.cos(v)) / scl
+    x = _RE * np.outer(np.cos(u), np.sin(v)) / scl
+    y = _RE * np.outer(np.sin(u), np.sin(v)) / scl
+    z = _RE * np.outer(np.ones_like(u), np.cos(v)) / scl
 
     return x, y, z
 

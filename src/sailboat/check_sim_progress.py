@@ -9,7 +9,7 @@ def check_sim_progress(
         ) -> None:
     # sim_direc_base = path.join(HOME, 'scratch', sim_name)
     scratch_direc = Path(HOME, 'scratch')
-    sim_direcs = [d for d in scratch_direc.iterdir() if d.name[:-16] == sim_name]
+    sim_direcs = [d for d in scratch_direc.iterdir() if d.name == sim_name]
     if len(sim_direcs) == 1:
         sim_direc = Path(scratch_direc, sim_direcs[0])
     else:
@@ -60,8 +60,10 @@ def check_sim_progress(
     if not su.simulation_finished(sim_direc):
         print(f'Estimated completion time:       {completion_time}')
         print(f'Estimated time until completion: {completion_time - datetime.now()}')
+        print(f'Estimated total time:            {completion_time - datetime.fromtimestamp(file_data[0, 1])}')
     else:
         print('Simulation completed.')
+        print(f'Total time:                 {datetime.fromtimestamp(file_data[-1, 1]) - datetime.fromtimestamp(file_data[0, 1])}')
     print('-' * 88 + '\n')
 
 if __name__ == '__main__':

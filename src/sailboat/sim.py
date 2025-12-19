@@ -5,6 +5,7 @@ from pathlib import Path
 def setup(
         sim_name: str
         ) -> None:
+    
     '''
     Setup for gemini simulation.
     Create and setup equilibrium simulation if not already done.
@@ -35,7 +36,7 @@ def setup(
         if not utils.simulation_finished_setup(eq_direc):
             write.eq_config(sim_direc)
             model.setup(eq_direc, eq_direc)
-        write.pbs(eq_direc)
+        write.pbs(eq_direc, num_nodes=1)
         command = 'msub ' + str(eq_direc / 'submit.pbs')
         raise FileNotFoundError('Equilibrium simulation setup done. ' \
                                 f'Please run the following command:\n\n{command}\n')
@@ -53,6 +54,7 @@ def setup(
 def process(
         sim_name: str
         ) -> None:
+    
     '''
     Series of post-processing tasks.
     Plot grid and list of variables. TBD

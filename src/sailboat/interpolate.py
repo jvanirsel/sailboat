@@ -1,4 +1,4 @@
-from sailboat import RE
+from sailboat import _RE
 from gemini3d import read
 from gemini3d.grid import convert
 from datetime import datetime
@@ -41,9 +41,9 @@ def trajectory(
 
         # convert input trajectory data to gemini dipole coordinates
         traj_phi, traj_theta = convert.geog2geomag(traj_gdlon, traj_gdlat)
-        traj_rad = RE + traj_gdalt
-        traj_q = ((RE / traj_rad) ** 2) * np.cos(traj_theta)
-        traj_p = (traj_rad / RE) / ( np.sin(traj_theta)**2 )
+        traj_rad = _RE + traj_gdalt
+        traj_q = ((_RE / traj_rad) ** 2) * np.cos(traj_theta)
+        traj_p = (traj_rad / _RE) / ( np.sin(traj_theta)**2 )
 
         # tid = np.argmin(np.abs([traj_time - t for t in sim_times]))
         assert(isinstance(traj_time, np.datetime64))

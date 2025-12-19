@@ -13,10 +13,6 @@ sim_direc = Path(GEMINI_SIM_ROOT, sim_name)
 cfg = read.config(sim_direc)
 time = cfg['time'][-1]
 
-xg = read.grid(sim_direc)
-# print(xg)
-print(cfg.keys())
-print(xg.keys())
 
 # dat = read.frame(sim_direc, time)
 # for sid in [1, 2, 3]:
@@ -24,8 +20,8 @@ print(xg.keys())
 
 # plot.variable(sim_name, 'ne')
 
-# _, gdlon, gdlat, gdalt = apep.get_trajectory(386)
-# plot.grid(sim_name, coord_type='ecef', trajectory=np.array([gdlon, gdlat, gdalt]))
+_, gdlon, gdlat, gdalt = apep.get_trajectory(386)
+plot.grid(sim_name, coord_type='ecef', trajectory=np.vstack([gdlon, gdlat, gdalt]), zoom=True)
 
 # apep.convert_solar_flux(cfg, cfg)
 

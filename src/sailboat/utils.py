@@ -1,3 +1,4 @@
+from sailboat import _WGS84_A, _WGS84_E2
 from gemini3d import read, utils
 from datetime import datetime
 import requests
@@ -5,6 +6,7 @@ import numpy as np
 import imageio.v3 as iio
 import xarray as xr
 from pathlib import Path
+import typing as T
 
 
 def cut_order(
@@ -15,7 +17,7 @@ def cut_order(
     Divide data by maximal order of magnitude.
     Returns new data of max order unity and the calculated order.
     '''
-    
+
     if isinstance(data, np.ndarray):
         all_zero = np.count_nonzero(data) == 0
     elif isinstance(data, xr.DataArray):
@@ -212,15 +214,18 @@ def si_units(
         order: int
         ) -> str:
     
-    prefix = {-9: 'n',
-              -6: 'µ',
-              -3: 'm',
-              -2: 'c',
-              -1: 'd',
-              0: '',
-              3: 'k',
-              6: 'M',
-              9: 'G'}
+    prefix = {
+        -9: 'n',
+        -6: 'µ',
+        -3: 'm',
+        -2: 'c',
+        -1: 'd',
+        0: '',
+        3: 'k',
+        6: 'M',
+        9: 'G',
+        }
+    
     if variable[0] == 'n':
         base_units = 'm-3'
         if order == -8:
@@ -285,5 +290,53 @@ def simulation_finished(
     final_output_filename = utils.datetime2stem(cfg['time'][-1]) + '.h5'
     return Path(sim_direc, final_output_filename).is_file()
 
+
+def geog_to_ecef(
+        glon: np.ndarray,
+        glat: np.ndarray,
+        galt: np.ndarray,
+        is_geodetic: bool = True,
+        in_degrees: bool = True,
+        units: T.Literal['m', 'km'] = 'm',
+        ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    
+    glon, glat, galt = np.broadcast_arrays(glon, glat, galt)
+    out_shape = glon.shape
+    
+    glon = glon.ravel()
+    glat = glat.ravel()
+    galt = galt.ravel()
+
+    if in_degrees:
+        glon = np.deg2rad(glon)
+        glat = np.deg2rad(glat)
+
+    sin_lon = np.sin(glon)
+    sin_lat = np.sin(glat)
+    cos_lon = np.cos(glon)
+    cos_lat = np.cos(glat)
+
+    scl = 1.0 + int(units == 'km') * 999.0
+
+    a = _WGS84_A / scl
+    galt /= scl
+
+    if is_geodetic:
+        e2 = _WGS84_E2
+        N = a / np.sqrt(1.0 - e2 * sin_lat**2)
+
+        ecef_X = (N + galt) * cos_lat * cos_lon
+        ecef_Y = (N + galt) * cos_lat * sin_lon
+        ecef_Z = (N * (1.0 - e2) + galt) * sin_lat
+    else:
+        ecef_X = a * cos_lat * cos_lon
+        ecef_Y = a * cos_lat * sin_lon
+        ecef_Z = a * sin_lat
+
+    ecef_X = ecef_X.reshape(out_shape)
+    ecef_Y = ecef_Y.reshape(out_shape)
+    ecef_Z = ecef_Z.reshape(out_shape)
+
+    return ecef_X, ecef_Y, ecef_Z
 
 

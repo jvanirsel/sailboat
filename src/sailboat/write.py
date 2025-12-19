@@ -26,16 +26,18 @@ def eq_config(
     eq_direc.mkdir(exist_ok=True)
     eq_cfg_path = Path(eq_direc, 'config.nml')
 
-    ignore_namelists = ['neutral_perturb',
-                        'precip',
-                        'efield',
-                        'solflux',
-                        'fields',
-                        'fang',
-                        'fang_pars',
-                        ]
-    ignore_variables = ['setup_functions',
-                        ]
+    ignore_namelists = [
+        'neutral_perturb',
+        'precip',
+        'efield',
+        'solflux',
+        'fields',
+        'fang',
+        'fang_pars',
+        ]
+    ignore_variables = [
+        'setup_functions',
+        ]
 
     new_lines = []
     do_write = True
@@ -97,18 +99,21 @@ def eq_config(
 def pbs(
         sim_direc: Path,
         queue: str = 'normalq',
-        num_nodes: int = 1,
+        num_nodes: int = 2,
         num_procs_per_node: int = 192,
         num_hours: float = 24,
-        email: str = ''
+        email: str = '',
+        add_timestamp: bool = False,
         ) -> None:
 
-    timestamp = datetime.strftime(datetime.now(), '_%Y%m%dT%H%M%S')
+    suffix = ''
+    if add_timestamp:
+        suffix = datetime.strftime(datetime.now(), '_%Y%m%dT%H%M%S')
 
     sim_name = sim_direc.name
     log_direc = Path(HOME, 'logs')
     scratch_direc = Path(HOME, 'scratch')
-    work_direc = Path(scratch_direc, sim_name + timestamp)
+    work_direc = Path(scratch_direc, sim_name + suffix)
 
     if not sim_direc.is_dir():
         raise NotADirectoryError(f'Cannot find simulation directory: {sim_direc}')
@@ -133,7 +138,7 @@ def pbs(
     module_list = [
         'gcc/8.5.0-gcc-8.5.0-cokvw3c',
         'openmpi/5.0.2-gcc-8.5.0-diludms',
-        'netlib-lapack/3.11.0-gcc-8.5.0-hlxv33x'
+        'netlib-lapack/3.11.0-gcc-8.5.0-hlxv33x',
         ]
 
     with open(pbs_path, 'w') as f:
