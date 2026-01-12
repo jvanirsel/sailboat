@@ -13,7 +13,8 @@ from pathlib import Path
 def convert_solar_flux(
         cfg: dict,
         xg: dict, # required for setup_functions in config.nml
-        solflux_in_extension: str = 'nc4'
+        solflux_in_extension: str = 'nc4',
+        unmask: bool = False
         ) -> None:
 
     solflux_in_direc = Path(SAILBOAT_ROOT, 'data', 'apep', '2023', 'fism2_masked')
@@ -79,6 +80,15 @@ def convert_solar_flux(
             irr = np.array(solflux_tgcm_data['msk_irradiance_tlsm'], dtype=np.float64) # W/m2
             irr = irr[:, :, :22]
             irr = irr / avg_photon_energy # photons/m2/s
+
+            # remove mask option (for null hypothesis testing)
+            if unmask:
+                iseclipse = np.array(solflux_data['iseclipse'], dtype=np.int8).astype(bool)
+                for wvl_id in range(irr.shape[2]):
+                    mean_ids = ~iseclipse & (irr[:, :, wvl_id] > 0)
+                    irr[:, :, wvl_id][iseclipse] = np.median(irr[:, :, wvl_id][mean_ids])
+
+            # reshape irradiance data 
             irr = irr[:, glon_ids, :].transpose(1,0,2) # llon x llat x 22
             Iinf = np.array(irr.transpose(2, 1, 0)) # preserve irr.shape when read by fortran
 
@@ -93,6 +103,7 @@ def convert_solar_flux(
             h5_ds.attrs['wavelength_units'] = 'meters'
             h5_ds.attrs['version'] = '1.1.0'
             h5_ds.attrs['tracked_changes'] = 'nearest neigbour interpolation'
+            # h5_ds.attrs['tracked_changes'] += ', '
 
             ## save simulation size and grid information
         with h5py.File(Path(sim_solflux_direc, 'simsize.h5'), 'w') as f:

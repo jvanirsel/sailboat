@@ -63,7 +63,7 @@ def check_sim_progress(
         print(f'Estimated total time:            {completion_time - datetime.fromtimestamp(file_data[0, 1])}')
     else:
         print('Simulation completed.')
-        print(f'Total time:                 {datetime.fromtimestamp(file_data[-1, 1]) - datetime.fromtimestamp(file_data[0, 1])}')
+        print(f'Total time:                      {datetime.fromtimestamp(file_data[-1, 1]) - datetime.fromtimestamp(file_data[0, 1])}')
     print('-' * 88 + '\n')
 
 if __name__ == '__main__':

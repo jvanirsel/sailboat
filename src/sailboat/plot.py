@@ -249,6 +249,7 @@ def grid(
         ) -> None:
     
     sffx = ''
+    do_plot_earth = True
     if zoom:
         sffx = '_zoom'
         decimate = 1
