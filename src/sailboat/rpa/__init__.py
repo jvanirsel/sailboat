@@ -1,10 +1,8 @@
 import numpy as np
-from . import plot, read, sim
 
-_MU = 0.0103651 # electronvolts microseconds^2 / millimeter^2
-_Q_ELEM = 1.60218e-4 # femtocoulombs
+_MU = 0.0103651 # electronvolt microsecond^2 millimeter^-2
+_Q_ELEM = 1.60218e-4 # femtocoulomb
 __version__ = '0.1.0'
-
 
 class Sweep:
     def __init__(
@@ -33,6 +31,16 @@ class Sweep:
             index: int
             ) -> float:
         return self.voltages[index]
+    
+    def __min__(
+            self
+            ):
+        return min(self.voltages)
+    
+    def __max__(
+            self
+            ):
+        return max(self.voltages)
 
 
 class Screen:
@@ -48,6 +56,7 @@ class Screen:
         self.sweeping = sweeping
         if sweeping:
             self.sweep: Sweep = voltages
+            self.sweep_len = len(voltages)
             self.sweep_id = 0
 
     def step_sweep(
@@ -87,6 +96,17 @@ class RPA:
         self.sensor = geometry.sensor
         self.aperture = geometry.aperture
         self.depth = self.screens[-1].location
+        sweep_len = 0
+        sweep_screen_id = -1
+        for sid, screen in enumerate(self.screens):
+            if screen.sweeping:
+                sweep_len = screen.sweep_len
+                sweep_screen_id = sid
+                break
+        self.sweep_screen_id = sweep_screen_id
+        self.sweep_len = sweep_len
+        self.sweep_id = 0
+        self.iv_curve = np.full((sweep_len, 2), np.nan)
 
     def __len__(
             self
@@ -101,6 +121,14 @@ class RPA:
         for screen in self.screens:
             if screen.sweeping:
                 screen.step_sweep()
+                self.sweep_id = screen.sweep_id
+    
+    def update_iv_curve(
+            self,
+            current: float
+            ):
+        
+        self.iv_curve[self.sweep_id, :] = [self.screens[self.sweep_screen_id].voltage, current]
 
     def get_locations(
             self
@@ -119,16 +147,24 @@ class Plasma:
     def __init__(
             self,
             velocity: tuple[float, float, float],
-            temperature: float,
+            ion_temperature: float,
+            electron_temperature: float,
             density: float,
             ionization_state: float,
             charge: float,
-            mass: float
+            mass: float,
+            magnetic_field: tuple[float, float, float]
             ):
         
         self.V = velocity
-        self.T = temperature
+        self.Ti = ion_temperature
+        self.Te = electron_temperature
         self.N = density
         self.Z = ionization_state
         self.Q = charge
         self.M = mass
+        self.S = charge * density * velocity[2] # nanoamperes millimeter^-2
+        self.B = magnetic_field
+
+
+from . import sim, plot, read

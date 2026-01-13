@@ -1,36 +1,53 @@
-# from sailboat.rpa import _Q_ELEM, _M, _Z, Screen, RPA, Plasma, read
-import sailboat.rpa as srpa
+from . import RPA, Plasma, Screen
+from .. import utils
 import numpy as np
 from pathlib import Path
 
 
 def run(
-        sim_direc: Path,
-        save_path: Path = sim_direc / 'aa.h5'
+        rpa_direc: Path,
         ) -> None:
 
-    rpa = srpa.read.rpa(sim_direc)
-    plasma = srpa.read.plasma(sim_direc)
+    from . import read, plot, sim
 
-    rays, ray_rates = srpa.sim.rays(
-        num_rays = 4000,
-        max_steps = 1000,
-        rpa = rpa,
-        plasma = plasma,
-        dt = 0.01
-    )
+    if not rpa_direc.is_dir():
+        raise FileNotFoundError(f'RPA directory {rpa_direc} not found')
+    
+    cfg = read.config(rpa_direc)
+    rpa = read.rpa(rpa_direc)
+    plasma = read.plasma(rpa_direc)
 
+    plot_direc = rpa_direc / 'plots'
+    gif_filename = 'simulation.gif'
 
+    for sweep_id in range(cfg['num_sweeps']):
 
-    srpa.plot.rays(rays, ray_rates, rpa, plasma)
+        rays, ray_rates = sim.rays(
+            num_rays = cfg['num_rays'],
+            max_steps = cfg['max_steps'],
+            rpa = rpa,
+            plasma = plasma,
+            dt = 0.01
+        )
+
+        current = plasma.Q * get_currents(rays, ray_rates, rpa.depth)
+        assert(isinstance(current, float))
+        rpa.update_iv_curve(current)
+
+        filename = f'step_{sweep_id:03d}.png'
+        
+        plot.rays(rays, ray_rates, rpa, plasma, plot_direc=plot_direc, filename=filename)
+        rpa.step_sweep()
+
+    utils.make_gif(plot_direc, prefix='step', filename=gif_filename)
 
 
 def rays(
         num_rays: int,
         max_steps: int,
-        rpa: srpa.RPA,
-        plasma: srpa.Plasma,
-        dt: float = 0.01 # microseconds
+        rpa: RPA,
+        plasma: Plasma,
+        dt: float = 0.01
         ) -> tuple[np.ndarray, np.ndarray]:
     
     '''
@@ -61,7 +78,6 @@ def rays(
     rays = np.full((num_rays, max_steps, 3), np.nan)
     ray_rates = np.full(num_rays, np.nan)
     for rid in range(num_rays):
-        print(rid, end='\n')
         x, y, z, vx, vy, vz = initial_phase(rpa, plasma)
         ray_rates[rid] = linear_aperture_particle_density * vz # particles / microsecond
         for sid in range(max_steps):
@@ -74,8 +90,8 @@ def rays(
 
 
 def initial_phase(
-        rpa: srpa.RPA,
-        plasma: srpa.Plasma
+        rpa: RPA,
+        plasma: Plasma
     ) -> np.ndarray:
 
     '''
@@ -91,7 +107,7 @@ def initial_phase(
 
     x_range = rpa.aperture[0]
     y_range = rpa.aperture[1]
-    sigma = np.sqrt(plasma.T / plasma.M) # millimeters / microsecond
+    sigma = np.sqrt(plasma.Ti / plasma.M) # millimeters / microsecond
 
     x0 = np.random.uniform(-x_range / 2, x_range / 2)
     y0 = np.random.uniform(-y_range / 2, y_range / 2)
@@ -107,8 +123,8 @@ def initial_phase(
 def update_phase(
         phase: np.ndarray,
         dt: float,
-        screens: list[srpa.Screen],
-        plasma: srpa.Plasma
+        screens: list[Screen],
+        plasma: Plasma
     ) -> np.ndarray:
     
     '''
@@ -146,8 +162,8 @@ def update_phase(
 
 def acceleration(
         phase: np.ndarray,
-        screens: list[srpa.Screen],
-        plasma: srpa.Plasma
+        screens: list[Screen],
+        plasma: Plasma
     ) -> tuple[float, float, float]:
 
     '''
@@ -164,6 +180,8 @@ def acceleration(
     '''
 
     x, y, z, vx, vy, vz = phase
+    Bx, By, Bz = plasma.B # tesla or volt microsecond millimeter^-2
+    specific_charge = plasma.Z / plasma.M
 
     sid = 0
     while sid < len(screens) and z >= screens[sid].location:
@@ -176,9 +194,15 @@ def acceleration(
     s0 = screens[sid - 1]
     s1 = screens[sid]
 
+    # electric field
     ax = 0
     ay = -9.8e-9 # millimeter / microseconds^2 heheh
-    az = (plasma.Z / plasma.M) * (s0.voltage - s1.voltage) / (s1.location - s0.location)
+    az = specific_charge * (s0.voltage - s1.voltage) / (s1.location - s0.location)
+
+    # magnetic field
+    ax += specific_charge * (Bz * vy - By * vz)
+    ay += specific_charge * (Bx * vz - Bz * vx)
+    az += specific_charge * (By * vx - Bx * vy)
 
     return ax, ay, az # millimeter / microseconds^2
 
@@ -216,8 +240,8 @@ def collect_punctures(
         ray = ray[~np.isnan(ray[:, 2]), :]
         if ray[-1, 2] > surface - tolerance:
             if get_coords:
-                punctures[i, 0] = float(i) # index
-                punctures[i, 1:] = ray[-1, 0:2] # millimeter
+                punctures[i, :2] = ray[-1, :2] # millimeter
+                punctures[i, 2] = float(i) # index
             else:
                 punctures[i] = i # index
 
@@ -230,7 +254,7 @@ def collect_punctures(
 def get_currents(
         rays: np.ndarray,
         ray_rates: np.ndarray,
-        surfaces: list[float]
+        surfaces: float | list[float]
         ) -> np.ndarray:
     
     '''
@@ -242,10 +266,17 @@ def get_currents(
     :param ray_rates: Particle rates at each ray (num_rays,) [particle microsecond^-1]
     :type ray_rates: numpy.ndarray
     :param surfaces: List of surface z-positions at which to collect currents [millimeter]
-    :type surfaces: list[float]
+    :type surfaces: float or list[float]
     :return: Currents at each surface [particle microsecond^-1]
-    :rtype: numpy.ndarray
+    :rtype: numpy.ndarray or float
     '''
+
+    if isinstance(surfaces, float):
+        float_in = True
+        surfaces = [surfaces]
+    else:
+        float_in = False
+    assert(isinstance(surfaces, list))
 
     currents = np.full(len(surfaces), np.nan)
     for i, surface in enumerate(surfaces):
@@ -255,5 +286,9 @@ def get_currents(
             punctures = collect_punctures(rays, surface) # indeces
             currents[i] = np.sum(ray_rates[punctures]) # particle microsecond^-1
     
-    return currents
+    return currents[0] if float_in else currents
 
+
+if __name__ == '__main__':
+    import sys
+    run(Path(sys.argv[1]))

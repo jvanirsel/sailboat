@@ -1,76 +1,91 @@
+from . import RPA, Sweep, Screen, RPAGeometry, Plasma, _Q_ELEM, _MU
 import tomllib
 from pathlib import Path
-import sailboat.rpa as srpa
 
 
 def toml(
-        sim_direc: Path
+        rpa_direc: Path
     ) -> dict:
     
-    toml_path = sim_direc / 'config.toml'
+    toml_path = rpa_direc / 'config.toml'
 
     if not toml_path.is_file():
-        raise FileNotFoundError(f'No config.toml found in {sim_direc}')
+        raise FileNotFoundError(f'No config.toml found in {rpa_direc}')
 
     with open(toml_path, 'rb') as toml_file:
         return tomllib.load(toml_file)
 
 
-def rpa(
-        sim_direc: Path
-        ) -> srpa.RPA:
+def config(
+        rpa_direc: Path
+        ) -> dict:
     
-    cfg = toml(sim_direc)['rpa']
-    screen_locations = cfg['screen_locations'] # millimeters
-    screen_voltages = cfg['screen_voltages'] # volts
+    toml_dict = toml(rpa_direc)
+    cfg = toml_dict['simulation']
+    cfg['num_sweeps'] = toml_dict['rpa']['sweep_steps']
+
+    return cfg
+
+
+def rpa(
+        rpa_direc: Path
+        ) -> RPA:
+    
+    cfg_rpa = toml(rpa_direc)['rpa']
+    screen_locations = cfg_rpa['screen_locations'] # millimeters
+    screen_voltages = cfg_rpa['screen_voltages'] # volts
     num_screens = len(screen_locations)
 
     screens = []
     for sid in range(num_screens):
-        if sid == cfg['sweep_id']:
-            v = srpa.Sweep(
-                min_voltage = cfg['sweep_limits'][0],
-                max_voltage = cfg['sweep_limits'][1],
-                num_steps = cfg['sweep_steps'],
-                rising = cfg['sweep_rising']
+        if sid == cfg_rpa['sweep_id']:
+            v = Sweep(
+                min_voltage = cfg_rpa['sweep_limits'][0],
+                max_voltage = cfg_rpa['sweep_limits'][1],
+                num_steps = cfg_rpa['sweep_steps'],
+                rising = cfg_rpa['sweep_rising']
             )
         else:
             v = screen_voltages[sid]
         
         screens.append(
-            srpa.Screen(
+            Screen(
                 location = screen_locations[sid],
                 voltages = v
             )
         )
 
-    return srpa.RPA(
+    return RPA(
         screens = screens,
-        geometry = srpa.RPAGeometry(
-            sensor = (cfg['sensor_size'][0], cfg['sensor_size'][1]), # millimeters
-            aperture = (cfg['aperture_size'][0], cfg['aperture_size'][1]) # millimeters
+        geometry = RPAGeometry(
+            sensor = (cfg_rpa['sensor_size'][0], cfg_rpa['sensor_size'][1]), # millimeters
+            aperture = (cfg_rpa['aperture_size'][0], cfg_rpa['aperture_size'][1]) # millimeters
             )
     )
 
 
 def plasma(
-        sim_direc: Path
-        ) -> srpa.Plasma:
+        rpa_direc: Path
+        ) -> Plasma:
     
-    cfg = toml(sim_direc)['plasma']
-    velocity = (cfg['beam_velocity'][0], cfg['beam_velocity'][1], cfg['beam_velocity'][2]) # millimeters / microsecond
-    temperature = cfg['temperature'] # electronvolts
-    density = cfg['density'] # millimeter^-3
-    ionization_state = cfg['z'] # elementary charges
-    charge = ionization_state * srpa._Q_ELEM # femtocoulombs
-    mass = cfg['m'] * srpa._MU # electronvolts microseconds^2 / millimeter^2
+    cfg_plasma = toml(rpa_direc)['plasma']
+    velocity = (cfg_plasma['beam_velocity'][0], cfg_plasma['beam_velocity'][1], cfg_plasma['beam_velocity'][2]) # millimeters / microsecond
+    ion_temperature = cfg_plasma['ion_temperature'] # electronvolts
+    electron_temperature = cfg_plasma['electron_temperature'] # electronvolts
+    density = cfg_plasma['density'] # millimeter^-3
+    ionization_state = cfg_plasma['z'] # elementary charges
+    charge = ionization_state * _Q_ELEM # femtocoulombs
+    mass = cfg_plasma['m'] * _MU # electronvolts microseconds^2 / millimeter^2
+    magnetic_field = cfg_plasma['magnetic_field'] # microtesla
 
-    return srpa.Plasma(
+    return Plasma(
         velocity = velocity,
-        temperature = temperature,
+        ion_temperature = ion_temperature,
+        electron_temperature = electron_temperature,
         density = density,
         ionization_state = ionization_state,
         charge = charge,
-        mass = mass
+        mass = mass,
+        magnetic_field = magnetic_field
     )
 

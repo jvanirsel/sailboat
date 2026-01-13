@@ -189,7 +189,8 @@ def dipole_glon_slice(
 def make_gif(
         plot_direc: Path,
         suffix: str = '.png',
-        prefix: str = ''
+        prefix: str = '',
+        filename: str = ''
         ) -> None:
     
     '''
@@ -205,7 +206,12 @@ def make_gif(
     frames = [iio.imread(Path(plot_direc, img)) for img in image_filenames]
 
     # save gif using first filename stem
-    gif_path = Path(plot_direc, image_filenames[0][:-4] + '.gif')
+    if not filename:
+        filename = image_filenames[0][:-4] + '.gif'
+    else:
+        filename = filename.split('.')[0] + '.gif'
+    
+    gif_path = Path(plot_direc, filename)
     print(f'Saving {gif_path}...')
     iio.imwrite(gif_path, frames, duration=0.1, loop=0)
 
