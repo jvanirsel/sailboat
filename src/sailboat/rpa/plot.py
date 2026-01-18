@@ -5,15 +5,18 @@ from matplotlib.axes import Axes
 from pathlib import Path
 
 def rays(
+        plot_path: Path,
         rays: np.ndarray,
         ray_rates: np.ndarray,
+        currents: np.ndarray,
         rpa: RPA,
-        plasma: Plasma,
-        filename: str = 'rays.png',
-        plot_direc: Path | None = None
+        plasmas: Plasma | list[Plasma]
         ) -> None:
 
     from . import sim
+
+    if isinstance(plasmas, Plasma):
+        plasmas = [plasmas]
 
     # geometry
     xa = rpa.aperture[0] / 2
@@ -21,10 +24,7 @@ def rays(
     xs = rpa.sensor[0] / 2
     ys = rpa.sensor[1] / 2
     zd = rpa.depth
-    max_size = 1.2 * max(2 * xs, 2 * ys, zd)
-
-    beam_energy = plasma.M * (plasma.V[0]**2 + plasma.V[1]**2 + plasma.V[2]**2) / 2
-    currents = sim.get_currents(rays, ray_rates, [0.0, rpa.screens[rpa.sweep_screen_id].location, rpa.depth]) * plasma.Q # nanoamperes
+    max_size = 1.5 * max(2 * xs, 2 * ys, zd)
 
     plt.style.use('dark_background')
     plt.rcParams["grid.alpha"] = 0.2
@@ -39,8 +39,10 @@ def rays(
     ax = axs[0, 0]
     assert(isinstance(ax, Axes))
 
-    for ray in rays:
+    for ray in rays[::max(len(rays) // 5000, 1)]:
+        ray = ray[~np.isnan(ray[:, 0]), :]
         ax.plot(ray[:, 2], ray[:, 1], color='w', alpha=0.9, linewidth=0.1)
+        # ax.scatter(ray[-1, 2], ray[-1, 1], color='r', s=1)
     for screen in rpa.screens:
         z = screen.location
         ax.plot([z, z], [-ys, ys], color='w', linestyle='--', linewidth=1) # screens
@@ -49,7 +51,8 @@ def rays(
         ax.text(z, ys / 2 + max_size / 4, f'{screen.voltage:.1f}{v_unit}', fontsize=8, ha='center', va='center', rotation=45)
         ax.text(z, -ys / 2 - max_size / 4, f'{screen.location:.1f}{z_unit}', fontsize=8, ha='center', va='center', rotation=-45)
     ax.plot([0, 0, zd, zd, 0, 0], [ya, ys, ys, -ys, -ys, -ya], color='y', linewidth=5) # enclosure
-    ax.plot([-1, 1, np.nan, -1, 1], [ya, ya, np.nan, -ya, -ya], color='r', linewidth=5) # aperture
+    ax.plot([-1, 1, np.nan, -1, 1], [ya, ya, np.nan, -ya, -ya], color='r', linewidth=5, alpha = 0.5) # aperture
+    ax.plot([0, 0, 0, 0, 0], [-max_size, -ys, np.nan, ys, max_size], color='y', linewidth=2) # aperture shield
     ax.plot([zd, zd], [-ys, ys], color='g', linewidth=5) # sensor
     
     ax.set_xlabel('z (mm)')
@@ -81,14 +84,14 @@ def rays(
     # right histogram
     ax = axs[0, 2]
     assert(isinstance(ax, Axes))
-    bin_centers, current_density = hits_histogram(sensor_hits, plasma, ray_rates, 1)
-    max_current_density = 1.5 * max(rpa.aperture) * plasma.S
+    bin_centers, current_density = hits_histogram(sensor_hits, plasmas[0], ray_rates, 1)
+    max_current_density = max(rpa.aperture) * plasmas[0].jz
 
     ax.plot(current_density, bin_centers, color='w')
 
     ax.set_xlabel('Current (nA / mm)')
-    ax.set_ylabel('y (mm)')
-    ax.set_xlim(0, max_current_density)
+    ax.set_ylabel(f'y (mm)')
+    ax.set_xlim(-0.1 * max_current_density, 1.1 * max_current_density)
     ax.set_ylim(-max_size / 2, max_size / 2)
     ax.xaxis.tick_top()
     ax.xaxis.set_label_position('top')
@@ -99,14 +102,14 @@ def rays(
     # bottom histogram
     ax = axs[1, 1]
     assert(isinstance(ax, Axes))
-    bin_centers, current_density = hits_histogram(sensor_hits, plasma, ray_rates, 0)
+    bin_centers, current_density = hits_histogram(sensor_hits, plasmas[0], ray_rates, 0)
 
     ax.plot(bin_centers, current_density, color='w')
 
     ax.set_xlabel('x (mm)')
     ax.set_ylabel('Current (nA / mm)')
     ax.set_xlim(-max_size / 2, max_size / 2)
-    ax.set_ylim(0, max_current_density)
+    ax.set_ylim(-0.1 * max_current_density, 1.1 * max_current_density)
     ax.yaxis.tick_right()
     ax.yaxis.set_label_position('right')
     ax.grid()
@@ -115,16 +118,15 @@ def rays(
     ax = axs[1, 0]
     assert(isinstance(ax, Axes))
     sweep = rpa.screens[rpa.sweep_screen_id].sweep.voltages
-    max_current = 1.3 * rpa.aperture[0] * rpa.aperture[1] * plasma.S
+    max_current = rpa.aperture[0] * rpa.aperture[1] * plasmas[0].jz
 
     ax.plot(rpa.iv_curve[:, 0], rpa.iv_curve[:, 1], color='w', linewidth=3)
 
     ax.set_xlim(min(sweep), max(sweep))
-    ax.set_ylim(-0.1 * max_current, max_current)
+    ax.set_ylim(-0.1 * max_current, 1.1 * max_current)
     ax.set_xlabel('Bias voltage (V)')
     ax.set_ylabel('Sensor current (nA)')
     ax.grid()
-
 
     # blank
     ax = axs[1, 2]
@@ -132,20 +134,22 @@ def rays(
     ax.axis('off')
 
     fig.suptitle(
-        f'Beam velocity: ({plasma.V[0]:.1f}, {plasma.V[1]:.1f}, {plasma.V[2]:.1f}) km/s' + 
-        f' — Beam energy: {beam_energy:.1f} eV' + 
-        f' — Temperatures: (Ti, Te) = ({plasma.Ti:.1f}, {plasma.Te:.1f}) eV' + 
-        f' — Number of rays: {len(rays)}' + 
-        f' — Currents: (aperture, bias, sensor) = ({currents[0]:.1f}, {currents[1]:.1f}, {currents[2]:.1f}) nA'
+        f'Beam velocity: ({plasmas[0].V[0]:.1f}, {plasmas[0].V[1]:.1f}, {plasmas[0].V[2]:.1f}) km s^-1' +
+        f' — Beam energy: {plasmas[0].K:.1f} eV' +
+        f' — Ion temperatures: (beam, background) = ({plasmas[0].Ti:.1f}, {plasmas[1].Ti:.1f}) eV' +
+        f' — Densities: (beam, background) = ({plasmas[0].N}, {plasmas[1].N}) mm^-3\n'
+        f'Magnetic field: ({1e6*plasmas[0].B[0]:.1f}, {1e6*plasmas[0].B[1]:.1f}, {1e6*plasmas[0].B[2]:.1f}) uT' +
+        f' — Number of rays: {len(rays)}' +
+        f' — Measured currents: (aperture, bias, sensor) = ({currents[0]:.1f}, {currents[1]:.1f}, {currents[2]:.1f}) nA' +
+        f' — Maximum aperture current: {max_current:.1f} nA'
         )
-    fig.subplots_adjust(left=0.05, right=0.95, bottom=0.06, top=0.9, wspace=0.07, hspace=0.07)
+    fig.subplots_adjust(left=0.05, right=0.95, bottom=0.06, top=0.88, wspace=0.07, hspace=0.07)
     fig.show()
 
-    if not plot_direc:
-        plot_direc = Path(__file__).parent / 'ray_plots'
-    plot_direc.mkdir(exist_ok=True)
-    print(f'Saving {plot_direc / filename}')
-    fig.savefig(plot_direc / filename, dpi=500)
+    print(f'Saving figure...', end='\r')
+    plot_path.parent.mkdir(exist_ok=True)
+    fig.savefig(plot_path, dpi=500)
+    print(f'Saved: {plot_path}')
 
     plt.close(fig)
 

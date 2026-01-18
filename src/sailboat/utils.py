@@ -56,6 +56,7 @@ def get_activity(
         print(response.reason)
         raise RuntimeError(f'Status = {response.status_code}, {response.reason}')
 
+    Ap = 0
     f107s = np.empty(f107a_range)
     for id in range(id0, id0 + f107a_range):
         data = np.array(lines[id].split())
@@ -190,7 +191,7 @@ def make_gif(
         plot_direc: Path,
         suffix: str = '.png',
         prefix: str = '',
-        filename: str = ''
+        filename: str | Path = ''
         ) -> None:
     
     '''
@@ -205,15 +206,20 @@ def make_gif(
     # generate frames from filenames
     frames = [iio.imread(Path(plot_direc, img)) for img in image_filenames]
 
-    # save gif using first filename stem
-    if not filename:
-        filename = image_filenames[0][:-4] + '.gif'
+    if isinstance(filename, Path):
+        gif_path = filename
     else:
-        filename = filename.split('.')[0] + '.gif'
-    
-    gif_path = Path(plot_direc, filename)
-    print(f'Saving {gif_path}...')
+        # save gif using first filename stem
+        if not filename:
+            filename = image_filenames[0][:-4] + '.gif'
+        else:
+            filename = filename.split('.')[0] + '.gif'
+        gif_path = Path(plot_direc, filename)
+
+    print(f'Saving gif...', end='\r')
+    gif_path.parent.mkdir(exist_ok=True)
     iio.imwrite(gif_path, frames, duration=0.1, loop=0)
+    print(f'Saved: {gif_path}')
 
 
 def si_units(
@@ -221,6 +227,7 @@ def si_units(
         order: int
         ) -> str:
     
+    base_units = ''
     prefix = {
         -9: 'n',
         -6: 'µ',
@@ -266,7 +273,7 @@ def check_activity(
         print('  Activity levels in config.nml match www-app3.gfz-potsdam.de values.')
 
 
-def internet_access() -> None:
+def internet_access() -> bool:
 
     try:
         requests.get('https://www.google.com')
@@ -277,7 +284,7 @@ def internet_access() -> None:
 
 def simulation_finished_setup(
         sim_direc: Path
-        ) -> None:
+        ) -> bool:
     
     if not Path(sim_direc, 'config.nml').is_file():
         return False
@@ -287,7 +294,7 @@ def simulation_finished_setup(
 
 def simulation_finished(
         sim_direc: Path
-        ) -> None:
+        ) -> bool:
     
     if not Path(sim_direc, 'config.nml').is_file():
         return False
@@ -345,5 +352,33 @@ def geog_to_ecef(
     ecef_Z = ecef_Z.reshape(out_shape)
 
     return ecef_X, ecef_Y, ecef_Z
+
+
+def load_bar(
+        value: int,
+        max_value: int,
+        prefix: str,
+        suffix: str = 'done',
+        length: int = 80
+        ) -> None:
+    
+    prefix = prefix + ' '
+
+    value_len = len(str(value))
+    max_value_len = len(str(max_value))
+
+    prefix_len = len(prefix)
+    suffix_len = 4 + 2 * max_value_len
+
+    if value >= max_value:
+        suffix = ' '  + suffix + ' ' * (suffix_len - len(suffix) - 1)
+    else:
+        suffix = ' ' * (max_value_len - value_len + 1) + f'{value} / {max_value}'
+
+    bar_len = length - prefix_len - suffix_len
+    loaded_len = round(bar_len * value / max_value)
+    bar = '▰' * loaded_len + '▱' * (bar_len - loaded_len)
+
+    print(prefix + bar + suffix, end='\r')
 
 

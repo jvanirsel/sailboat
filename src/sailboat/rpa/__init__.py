@@ -2,6 +2,7 @@ import numpy as np
 
 _MU = 0.0103651 # electronvolt microsecond^2 millimeter^-2
 _Q_ELEM = 1.60218e-4 # femtocoulomb
+_EPS0 = 5.52635e5 # elementary charge^2 electronvolt^-1 millimeter^-1
 __version__ = '0.1.0'
 
 class Sweep:
@@ -49,9 +50,10 @@ class Screen:
             location: float,
             voltages: float | Sweep
             ):
-        
+
         sweeping = isinstance(voltages, Sweep)
-        self.voltage = voltages[0] if sweeping else voltages # volts
+        voltage = voltages[0] if sweeping else voltages # volts
+        self.voltage = voltage
         self.location = location # millimeters
         self.sweeping = sweeping
         if sweeping:
@@ -78,8 +80,9 @@ class RPAGeometry:
             aperture: tuple[float, float]
             ):
         
-        self.sensor = sensor # millimeters
-        self.aperture = aperture # millimeters
+        self.sensor = sensor
+        self.aperture = aperture
+        self.source = (sensor[0] + 2 * aperture[0], sensor[1] + 2 * aperture[1])
 
 
 class RPA:
@@ -95,6 +98,7 @@ class RPA:
         self.screens = sorted(screens, key=lambda s: s.location)
         self.sensor = geometry.sensor
         self.aperture = geometry.aperture
+        self.source = geometry.source
         self.depth = self.screens[-1].location
         sweep_len = 0
         sweep_screen_id = -1
@@ -122,12 +126,21 @@ class RPA:
             if screen.sweeping:
                 screen.step_sweep()
                 self.sweep_id = screen.sweep_id
+
+    def get_sweep_voltages(
+            self
+            ) -> np.ndarray:
+        
+        for screen in self.screens:
+            if screen.sweeping:
+                return screen.sweep.voltages
+        return np.array([])     
     
     def update_iv_curve(
             self,
             current: float
-            ):
-        
+            ) -> None:
+    
         self.iv_curve[self.sweep_id, :] = [self.screens[self.sweep_screen_id].voltage, current]
 
     def get_locations(
@@ -163,7 +176,8 @@ class Plasma:
         self.Z = ionization_state
         self.Q = charge
         self.M = mass
-        self.S = charge * density * velocity[2] # nanoamperes millimeter^-2
+        self.jz = charge * density * velocity[2] # nanoamperes millimeter^-2
+        self.K = mass * (velocity[0]**2 + velocity[1]**2 + velocity[2]**2) / 2
         self.B = magnetic_field
 
 
