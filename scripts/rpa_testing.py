@@ -63,9 +63,15 @@ import h5py
 
 t0 = time.perf_counter()
 sim_direc = SAILBOAT_ROOT / 'data' / 'rpa' / sys.argv[1]
-srpa.sim.run(sim_direc, debug=False)
+srpa.sim.run(sim_direc, do_electrons=False, debug=False)
 t1 = time.perf_counter()
 print(f'Elapsed time: {t1 - t0:.2f} seconds')
+quit()
+
+# t0 = time.perf_counter()
+# srpa.sim.run(sim_direc, do_electrons=True)
+# t1 = time.perf_counter()
+# print(f'Elapsed electron time: {t1 - t0:.2f} seconds')
 
     # h5_file_path = sim_direc / 'config_00_data.h5'  # change to your file path
     # read_h5_file(h5_file_path)

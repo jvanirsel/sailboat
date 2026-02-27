@@ -358,7 +358,7 @@ def load_bar(
         value: int,
         max_value: int,
         prefix: str,
-        suffix: str = 'done',
+        suffix: str = 'Done',
         length: int = 80
         ) -> None:
     
@@ -371,13 +371,16 @@ def load_bar(
     suffix_len = 4 + 2 * max_value_len
 
     if value >= max_value:
-        suffix = ' '  + suffix + ' ' * (suffix_len - len(suffix) - 1)
+        suffix = '.' * (suffix_len - len(suffix) - 1)  + ' ' + suffix
     else:
         suffix = ' ' * (max_value_len - value_len + 1) + f'{value} / {max_value}'
 
     bar_len = length - prefix_len - suffix_len
     loaded_len = round(bar_len * value / max_value)
-    bar = '▰' * loaded_len + '▱' * (bar_len - loaded_len)
+    if value >= max_value:
+        bar = '.' * bar_len
+    else:
+        bar = '▰' * loaded_len + '▱' * (bar_len - loaded_len)
 
     print(prefix + bar + suffix, end='\r')
 

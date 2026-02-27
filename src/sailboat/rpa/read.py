@@ -37,8 +37,10 @@ def rpa(
     screen_locations = np.array(cfg_rpa['screen_locations']).astype(float) # millimeter
     screen_voltages =  np.array(cfg_rpa['screen_voltages']).astype(float) # volt
     num_screens = len(screen_locations)
-    screen_voltages += float(cfg_rpa['floating_potential'])
+    floating_potential = float(cfg_rpa['floating_potential'])
+    screen_voltages += floating_potential
     sweep_id = int(cfg_rpa['sweep_id'])
+    is_ivm = bool(cfg_rpa['is_ivm'])
 
     screens = []
     for sid in range(num_screens):
@@ -70,7 +72,9 @@ def rpa(
                 float(cfg_rpa['aperture_size'][0]),
                 float(cfg_rpa['aperture_size'][1])
             ) # millimeters
-            )
+            ),
+        floating_potential = floating_potential,
+        is_ivm = is_ivm
     )
 
 
@@ -79,14 +83,25 @@ def plasma(
         ) -> Plasma:
     
     cfg_plasma = toml(rpa_direc)['plasma']
+    cfg_plasma_bg = toml(rpa_direc)['background_plasma']
+
     velocity = (
         float(cfg_plasma['beam_velocity'][0]),
         float(cfg_plasma['beam_velocity'][1]),
         float(cfg_plasma['beam_velocity'][2])
         ) # millimeters / microsecond
-    ion_temperature = float(cfg_plasma['ion_temperature']) # electronvolts
-    electron_temperature = float(cfg_plasma['electron_temperature']) # electronvolts
-    density = float(cfg_plasma['density']) # millimeter^-3
+    ion_temperature = (
+        float(cfg_plasma['ion_temperature']),
+        float(cfg_plasma_bg['ion_temperature'])
+        ) # electronvolts
+    electron_temperature = (
+        float(cfg_plasma['electron_temperature']),
+        float(cfg_plasma_bg['electron_temperature'])
+        ) # electronvolts
+    density = (
+        float(cfg_plasma['density']),
+        float(cfg_plasma_bg['density'])
+        ) # millimeter^-3
     ionization_state = int(cfg_plasma['ionization_state']) # elementary charges
     charge = ionization_state * _Q_ELEM # femtocoulombs
     mass = float(cfg_plasma['ion_mass']) * _MU # electronvolts microseconds^2 / millimeter^2
@@ -107,32 +122,32 @@ def plasma(
         magnetic_field = magnetic_field
     )
 
-def background_plasma(
-        rpa_direc: Path
-        ) -> Plasma:    
+# def background_plasma(
+#         rpa_direc: Path
+#         ) -> Plasma:    
 
-    cfg_plasma = toml(rpa_direc)['plasma']
-    cfg_plasma_bg = toml(rpa_direc)['background_plasma']
-    velocity = (0.0, 0.0, 0.0)
-    ion_temperature = float(cfg_plasma_bg['ion_temperature']) # electronvolts
-    electron_temperature = float(cfg_plasma['electron_temperature']) # electronvolts
-    density = float(cfg_plasma_bg['density']) # millimeter^-3
-    ionization_state = int(cfg_plasma['ionization_state']) # elementary charges
-    charge = ionization_state * _Q_ELEM # femtocoulombs
-    mass = float(cfg_plasma['ion_mass']) * _MU # electronvolts microseconds^2 / millimeter^2
-    magnetic_field = (
-        float(cfg_plasma['magnetic_field'][0]),
-        float(cfg_plasma['magnetic_field'][1]),
-        float(cfg_plasma['magnetic_field'][2])
-        ) # microtesla
+#     cfg_plasma = toml(rpa_direc)['plasma']
+#     cfg_plasma_bg = toml(rpa_direc)['background_plasma']
+#     velocity = (0.0, 0.0, 0.0)
+#     ion_temperature = float(cfg_plasma_bg['ion_temperature']) # electronvolts
+#     electron_temperature = float(cfg_plasma['electron_temperature']) # electronvolts
+#     density = float(cfg_plasma_bg['density']) # millimeter^-3
+#     ionization_state = int(cfg_plasma['ionization_state']) # elementary charges
+#     charge = ionization_state * _Q_ELEM # femtocoulombs
+#     mass = float(cfg_plasma['ion_mass']) * _MU # electronvolts microseconds^2 / millimeter^2
+#     magnetic_field = (
+#         float(cfg_plasma['magnetic_field'][0]),
+#         float(cfg_plasma['magnetic_field'][1]),
+#         float(cfg_plasma['magnetic_field'][2])
+#         ) # microtesla
 
-    return Plasma(
-        velocity = velocity,
-        ion_temperature = ion_temperature,
-        electron_temperature = electron_temperature,
-        density = density,
-        ionization_state = ionization_state,
-        charge = charge,
-        mass = mass,
-        magnetic_field = magnetic_field
-    )
+#     return Plasma(
+#         velocity = velocity,
+#         ion_temperature = ion_temperature,
+#         electron_temperature = electron_temperature,
+#         density = density,
+#         ionization_state = ionization_state,
+#         charge = charge,
+#         mass = mass,
+#         magnetic_field = magnetic_field
+#     )

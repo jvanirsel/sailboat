@@ -1,6 +1,7 @@
 import numpy as np
 
 _MU = 0.0103651 # electronvolt microsecond^2 millimeter^-2
+_ME = 5.68563e-6 # electronvolt microsecond^2 millimeter^-2
 _Q_ELEM = 1.60218e-4 # femtocoulomb
 _EPS0 = 5.52635e5 # elementary charge^2 electronvolt^-1 millimeter^-1
 __version__ = '0.1.0'
@@ -90,6 +91,8 @@ class RPA:
             self,
             screens: list[Screen],
             geometry: RPAGeometry,
+            floating_potential: float,
+            is_ivm: bool = True
             ):
 
         if not screens:
@@ -110,7 +113,12 @@ class RPA:
         self.sweep_screen_id = sweep_screen_id
         self.sweep_len = sweep_len
         self.sweep_id = 0
-        self.iv_curve = np.full((sweep_len, 2), np.nan)
+        if is_ivm:
+            self.iv_curve = np.full((sweep_len, 5), np.nan)
+        else:
+            self.iv_curve = np.full((sweep_len, 2), np.nan)
+        self.floating_potential = floating_potential
+        self.is_ivm = is_ivm
 
     def __len__(
             self
@@ -138,10 +146,15 @@ class RPA:
     
     def update_iv_curve(
             self,
-            current: float
+            current: float | np.ndarray
             ) -> None:
-    
-        self.iv_curve[self.sweep_id, :] = [self.screens[self.sweep_screen_id].voltage, current]
+
+        v = self.screens[self.sweep_screen_id].voltage
+        if isinstance(current, float):
+            self.iv_curve[self.sweep_id, :] = [v, current]
+        else:
+            self.iv_curve[self.sweep_id, :] = np.concatenate(([v], current))
+
 
     def get_locations(
             self
@@ -160,23 +173,32 @@ class Plasma:
     def __init__(
             self,
             velocity: tuple[float, float, float],
-            ion_temperature: float,
-            electron_temperature: float,
-            density: float,
+            ion_temperature: tuple[float, float],
+            electron_temperature: tuple[float, float],
+            density: tuple[float, float],
             ionization_state: float,
             charge: float,
             mass: float,
             magnetic_field: tuple[float, float, float]
             ):
         
+        lambdaD = (
+            234.957 * (electron_temperature[0] / density[0])**0.5,
+            234.957 * (electron_temperature[1] / density[1])**0.5,
+            234.957 * (ion_temperature[0] / density[0])**0.5,
+            234.957 * (ion_temperature[1] / density[1])**0.5,
+        )
+
         self.V = velocity
         self.Ti = ion_temperature
         self.Te = electron_temperature
         self.N = density
         self.Z = ionization_state
         self.Q = charge
-        self.M = mass
-        self.jz = charge * density * velocity[2] # nanoamperes millimeter^-2
+        self.Mi = mass
+        self.Me = _ME
+        self.jz = charge * density[0] * velocity[2] # nanoamperes millimeter^-2
+        self.lambdaD = (lambdaD[0]**-2 + lambdaD[1]**-2 + lambdaD[2]**-2 + lambdaD[3]**-2)**-0.5
         self.K = mass * (velocity[0]**2 + velocity[1]**2 + velocity[2]**2) / 2
         self.B = magnetic_field
 
