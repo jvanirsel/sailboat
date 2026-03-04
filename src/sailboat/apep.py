@@ -13,11 +13,20 @@ from pathlib import Path
 def convert_solar_flux(
         cfg: dict,
         xg: dict, # required for setup_functions in config.nml
-        solflux_in_extension: str = 'nc4',
         unmask: bool = False
         ) -> None:
 
-    solflux_in_direc = Path(SAILBOAT_ROOT, 'data', 'apep', '2023', 'fism2_masked')
+    year = str(cfg['time'][0].year)
+    solflux_in_direc = Path(SAILBOAT_ROOT, 'data', 'apep', year, 'fism2')
+
+    if year == '2023':
+        solflux_in_extension = 'nc4'
+        id0 = 13
+    elif year == '2024':
+        solflux_in_extension = 'sav'
+        id0 = 12
+    else:
+        raise ValueError(f'Unexpected year {year} in simulation time. Expected 2023 or 2024.')
 
     ## read simulation data
     sim_direc = Path(cfg['nml']).parent
@@ -37,8 +46,8 @@ def convert_solar_flux(
     ## read input filenames
     solflux_filenames =  [f for f in solflux_in_direc.iterdir() if f.is_file() and f.suffix == f'.{solflux_in_extension}']
     if not solflux_filenames:
-        raise FileNotFoundError(f'No .nc4 files found in {solflux_in_direc}')
-    solflux_times = [datetime.strptime(f.name[13:28], '%Y%m%d_%H%M%S') for f in solflux_filenames]
+        raise FileNotFoundError(f'No .{solflux_in_extension} files found in {solflux_in_direc}')
+    solflux_times = [datetime.strptime(f.name[id0:id0+15], '%Y%m%d_%H%M%S') for f in solflux_filenames]
     if solflux_times[0] - sim_solflux_dt > sim_times[0] or \
        solflux_times[-1] + sim_solflux_dt < sim_times[-1]:
         raise ValueError('Solar flux data out of simulation time range\n' \
@@ -309,8 +318,9 @@ def get_trajectory(
     with h5py.File(ephemeris_path) as ephemeris_data_h5:
         ephemeris_data_group = ephemeris_data_h5[f'36.{rid}/{data_type}']
         assert(isinstance(ephemeris_data_group, h5py.Group))
+        day0 = ephemeris_data_group['time'].attrs['Description'].split(' of ')[-1]
         time = np.array(ephemeris_data_group['time'], dtype=np.int64)
-        time = np.datetime64('2023-10-14', 'us') + time.astype('timedelta64[us]')
+        time = np.datetime64(day0, 'us') + time.astype('timedelta64[us]')
         gdlon = np.array(ephemeris_data_group['longitude'], dtype=np.float64)
         gdlat = np.array(ephemeris_data_group['latitude'], dtype=np.float64)
         gdalt = np.array(ephemeris_data_group['altitude'], dtype=np.float64)

@@ -6,8 +6,57 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter1d
 from pathlib import Path
+import scipy
 
-# sim_name = f'apep1_387_unmask'
+for year in ['2023', '2024']:
+    solflux_in_direc = Path(SAILBOAT_ROOT, 'data', 'apep', year, 'fism2')
+    solflux_in_extension = 'sav' if year == '2024' else 'nc4'
+    solflux_filenames =  [f for f in solflux_in_direc.iterdir() if f.is_file() and f.suffix == f'.{solflux_in_extension}']
+    id0 = 12 if year == '2024' else 13
+    solflux_times = [datetime.strptime(f.name[id0:id0+15], '%Y%m%d_%H%M%S') for f in solflux_filenames]
+
+    solflux_path = Path(solflux_in_direc, solflux_filenames[0])
+
+    if year == '2023':
+        with h5py.File(solflux_path, 'r') as solflux_data:
+            print(solflux_data.keys())
+            solflux_tgcm_data = solflux_data['sb_tgcm'] # first 22 tgcm spectral bins match gemini bins
+            assert isinstance(solflux_tgcm_data, h5py.Group)  # narrows type for pylance checker
+            glat = np.array(solflux_data['Lat'], dtype=np.float64) # degrees
+            glon = np.array(solflux_data['Lon'], dtype=np.float64) # degrees
+            wvl0 = np.array(solflux_tgcm_data['Start_wavelength'], dtype=np.float64)
+            wvl1 = np.array(solflux_tgcm_data['End_wavelength'], dtype=np.float64)
+            # wvl0 = wvl0[:22] * 1e-0 # m
+            # wvl1 = wvl1[:22] * 1e-0 # m
+    else:
+        solflux_data = scipy.io.readsav(solflux_path)
+        glat = np.array(solflux_data['lat'], dtype=np.float64) # degrees
+        glon = np.array(solflux_data['lon'], dtype=np.float64) # degrees
+        wvl0n = np.array(solflux_data['start_wv'], dtype=np.float64)
+        wvl1n = np.array(solflux_data['end_wv'], dtype=np.float64)
+        # wvl0n = wvl0n * 1e-0 # m
+        # wvl1n = wvl1n * 1e-0 # m
+
+        print(solflux_data.keys())
+# for i in range(len(wvl0)):
+#     print(f'{wvl0[i]:.2f}, {wvl1[i]:.2f}')
+# for i in range(len(wvl0n)):
+#     print(f'{wvl0n[i]:.2f}, {wvl1n[i]:.2f}')
+
+    # print(glon)
+
+    # solflux_tgcm_data = solflux_data['sb_tgcm']
+
+quit()
+
+fn = SAILBOAT_ROOT / 'data' / 'apep' / '2024' / 'fism2' / 'fism_masked_20240408_170000_gitm.sav'
+# df, meta = pyreadstat.read_sav(fn)
+# print(meta.column_names)
+df = scipy.io.readsav(fn)
+print(df.keys())
+quit(1)
+
+# sim_name = f'apep1_387_hires'
 # # sim_name = 'test'
 # sim_direc = Path(GEMINI_SIM_ROOT, sim_name)
 # cfg = read.config(sim_direc)
@@ -44,7 +93,7 @@ from pathlib import Path
 # quit()
 
 # for t in range(140000, 210000, 10000):
-#     solflux_path = f'/home2/vanirsej/sailboat/src/sailboat/data/apep/2023/fism2_masked/FISM2_MASKED_20231014_{t}.nc4'
+#     solflux_path = f'/home2/vanirsej/sailboat/src/sailboat/data/apep/2023/fism2/FISM2_MASKED_20231014_{t}.nc4'
 #     with h5py.File(solflux_path, 'r') as solflux_data:
 #         lat = np.array(solflux_data['Lat'], dtype=np.float64)
 #         lon = np.array(solflux_data['Lon'], dtype=np.float64) + 180.0
@@ -95,22 +144,22 @@ from pathlib import Path
 # apep.convert_slp_data()
 # quit()
 
-# for rid in [386, 387, 388]:
-#     time, _, _, alt = apep.get_trajectory(rid)
-#     ind = np.argmax(alt)
-#     t = time[ind]
-#     sod = (t - t.astype('datetime64[D]')).astype(int) / 1e6
+for rid in [392, 393, 394]: #[386, 387, 388]:
+    time, _, _, alt = apep.get_trajectory(rid)
+    ind = np.argmax(alt)
+    t = time[ind]
+    sod = (t - t.astype('datetime64[D]')).astype(int) / 1e6
 
-#     print('-' * 40 + f' {rid} ' + '-' * 40 + '\n.../config.nml:')
-#     print(f'UTsec0 = {round(sod)-600-7200}')
-#     print('tdur = 7200')
-#     print('dtout = 600')
+    print('-' * 40 + f' {rid} ' + '-' * 40 + '\n.../config.nml:')
+    print(f'UTsec0 = {round(sod)-600-7200}')
+    print('tdur = 7200')
+    print('dtout = 600')
 
-#     print('\n..._30s/config.nml:')
-#     print(f'UTsec0 = {round(sod)-600}')
-#     print('tdur = 1200')
-#     print('dtout = 30\n')
-# quit()
+    print('\n..._30s/config.nml:')
+    print(f'UTsec0 = {round(sod)-600}')
+    print('tdur = 1200')
+    print('dtout = 30\n')
+quit()
 
 # sim_name = 'apep_2023_veia10_30s'
 # sim_direc = path.join(GEMINI_SIM_ROOT, sim_name)
