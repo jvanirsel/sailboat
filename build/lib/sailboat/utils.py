@@ -1,4 +1,4 @@
-from . import _WGS84_A, _WGS84_E2, VEGA_USERNAME
+from sailboat import _WGS84_A, _WGS84_E2
 from gemini3d import read, utils
 from datetime import datetime
 import requests
@@ -8,48 +8,6 @@ import xarray as xr
 from pathlib import Path
 import typing as T
 from os import listdir
-import subprocess
-
-
-def vega_rsync(
-        local_path: Path,
-        vega_path: Path,
-        receive: bool = False,
-        remote_username: str | None = None,
-        remote_host: str = 'vegaln2.erau.edu',
-        key: Path = Path('~', '.ssh', 'id_ed25519')
-        ) -> None:
-
-    if not key.expanduser().exists():
-        raise FileNotFoundError('Please generate Ed25519 SSH key pair with VEGA.')
-
-    if not remote_username:
-        remote_username = f'{VEGA_USERNAME}'
-
-    local_path = local_path.expanduser().resolve()
-    vega_path = collapseuser(vega_path)
-
-    cmd = ['rsync', '-avz', '--progress']
-    cmd += ['-e', f'ssh -i {key.expanduser()}']
-    if not receive: # send
-        cmd += [f'{local_path}', f'{remote_username}@{remote_host}:{vega_path}']
-    else: # receive
-        cmd += [f'{remote_username}@{remote_host}:{str(vega_path)}', f'{local_path}']
-
-    subprocess.run(cmd, check=True)
-
-
-def collapseuser(
-        path: Path
-        ) -> Path:
-    
-    path = path.resolve()
-    home = Path.home().resolve()
-
-    try:
-        return Path('~') / path.relative_to(home)
-    except ValueError:
-        return path
 
 
 def cut_order(
@@ -344,13 +302,7 @@ def simulation_finished(
         return False
     cfg = read.config(sim_direc)
     final_output_filename = utils.datetime2stem(cfg['time'][-1]) + '.h5'
-    if not Path(sim_direc, final_output_filename).is_file():
-        try:
-            vega_rsync(Path(sim_direc, final_output_filename), Path(sim_direc, final_output_filename), receive=True)
-        except:
-            return False
     return Path(sim_direc, final_output_filename).is_file()
-        
 
 
 def geog_to_ecef(

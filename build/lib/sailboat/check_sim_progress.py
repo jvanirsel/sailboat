@@ -1,4 +1,4 @@
-from . import utils as su
+from sailboat import HOME, utils as su
 from gemini3d import read, utils
 from datetime import datetime, timedelta
 import numpy as np
@@ -8,7 +8,7 @@ def check_sim_progress(
         sim_name: str
         ) -> None:
     # sim_direc_base = path.join(HOME, 'scratch', sim_name)
-    scratch_direc = Path('~', 'scratch')
+    scratch_direc = Path(HOME, 'scratch')
     sim_direcs = [d for d in scratch_direc.iterdir() if d.name == sim_name]
     if len(sim_direcs) == 1:
         sim_direc = Path(scratch_direc, sim_direcs[0])

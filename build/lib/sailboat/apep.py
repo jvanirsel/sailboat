@@ -1,4 +1,4 @@
-from . import SAILBOAT_ROOT, interpolate
+from sailboat import SAILBOAT_ROOT, interpolate
 from gemini3d import utils
 from datetime import datetime
 from scipy.constants import h, c
@@ -13,12 +13,20 @@ from pathlib import Path
 def convert_solar_flux(
         cfg: dict,
         xg: dict, # required for setup_functions in config.nml
-        solflux_in_extension: str = 'nc4',
         unmask: bool = False
         ) -> None:
 
     year = str(cfg['time'][0].year)
     solflux_in_direc = Path(SAILBOAT_ROOT, 'data', 'apep', year, 'fism2')
+
+    if year == '2023':
+        solflux_in_extension = 'nc4'
+        id0 = 13
+    elif year == '2024':
+        solflux_in_extension = 'sav'
+        id0 = 12
+    else:
+        raise ValueError(f'Unexpected year {year} in simulation time. Expected 2023 or 2024.')
 
     ## read simulation data
     sim_direc = Path(cfg['nml']).parent
@@ -39,7 +47,7 @@ def convert_solar_flux(
     solflux_filenames =  [f for f in solflux_in_direc.iterdir() if f.is_file() and f.suffix == f'.{solflux_in_extension}']
     if not solflux_filenames:
         raise FileNotFoundError(f'No .{solflux_in_extension} files found in {solflux_in_direc}')
-    solflux_times = [datetime.strptime(f.name[13:28], '%Y%m%d_%H%M%S') for f in solflux_filenames]
+    solflux_times = [datetime.strptime(f.name[id0:id0+15], '%Y%m%d_%H%M%S') for f in solflux_filenames]
     if solflux_times[0] - sim_solflux_dt > sim_times[0] or \
        solflux_times[-1] + sim_solflux_dt < sim_times[-1]:
         raise ValueError('Solar flux data out of simulation time range\n' \
@@ -156,20 +164,20 @@ def convert_ephemeris() -> None:
         print('Writing raw data...', end='')
 
         ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/raw/time', data=us_of_day, dtype=np.int64)
-        ds.attrs['description'] = f'microsecond of {day0}'
-        ds.attrs['units'] = 'microseconds'
+        ds.attrs['Description'] = f'Microsecond of {day0}'
+        ds.attrs['Units'] = 'microseconds'
 
         ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/raw/latitude', data=gdlat, dtype=np.float64)
-        ds.attrs['description'] = 'geodetic latitude'
-        ds.attrs['units'] = 'degrees'
+        ds.attrs['Description'] = 'Geodetic latitude'
+        ds.attrs['Units'] = 'degrees'
 
         ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/raw/longitude', data=gdlon, dtype=np.float64)
-        ds.attrs['description'] = 'geodetic longitude'
-        ds.attrs['units'] = 'degrees'
+        ds.attrs['Description'] = 'Geodetic longitude'
+        ds.attrs['Units'] = 'degrees'
 
         ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/raw/altitude', data=gdalt, dtype=np.float64)
-        ds.attrs['description'] = 'geodetic altitude'
-        ds.attrs['units'] = 'meters'
+        ds.attrs['Description'] = 'Geodetic altitude'
+        ds.attrs['Units'] = 'meters'
 
         print('done')
         print('Writing interpolated data...', end='')
@@ -191,20 +199,20 @@ def convert_ephemeris() -> None:
         alt_interp = falt(us_of_day_interp)
 
         ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/interpolated/time', data=us_of_day_interp, dtype=np.int64)
-        ds.attrs['description'] = f'interpolated microsecond of {day0}'
-        ds.attrs['units'] = 'microseconds'
+        ds.attrs['Description'] = f'Interpolated microsecond of {day0}'
+        ds.attrs['Units'] = 'microseconds'
 
         ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/interpolated/latitude', data=lat_interp, dtype=np.float64)
-        ds.attrs['description'] = 'interpolated geodetic latitude'
-        ds.attrs['units'] = 'degrees'
+        ds.attrs['Description'] = 'Interpolated geodetic latitude'
+        ds.attrs['Units'] = 'degrees'
 
         ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/interpolated/longitude', data=lon_interp, dtype=np.float64)
-        ds.attrs['description'] = 'interpolated geodetic longitude'
-        ds.attrs['units'] = 'degrees'
+        ds.attrs['Description'] = 'Interpolated geodetic longitude'
+        ds.attrs['Units'] = 'degrees'
 
         ds = ephemeris_data_h5.create_dataset(f'/36.{rid}/interpolated/altitude', data=alt_interp, dtype=np.float64)
-        ds.attrs['description'] = 'interpolated geodetic altitude'
-        ds.attrs['units'] = 'meters'
+        ds.attrs['Description'] = 'Interpolated geodetic altitude'
+        ds.attrs['Units'] = 'meters'
 
         print('done')
 
@@ -247,19 +255,19 @@ def convert_slp_data() -> None:
         us_of_day = (slp_time - day0).astype(np.int64)
 
         ds = slp_data_h5.create_dataset(f'/36.{rid}/time', data=us_of_day, dtype=np.int64)
-        ds.attrs['description'] = f'microsecond of {day0}'
+        ds.attrs['description'] = f'Microsecond of {day0}'
         ds.attrs['units'] = 'microseconds'
 
         ds = slp_data_h5.create_dataset(f'/36.{rid}/altitude', data=slp_gdalt, dtype=np.float64)
-        ds.attrs['description'] = 'downleg altitude'
+        ds.attrs['description'] = 'Downleg altitude'
         ds.attrs['units'] = 'meters'
 
         ds = slp_data_h5.create_dataset(f'/36.{rid}/ion_density', data=slp_ion_density, dtype=np.float64)
-        ds.attrs['description'] = 'ion density'
+        ds.attrs['description'] = 'Ion density'
         ds.attrs['units'] = 'meters-3'
 
         ds = slp_data_h5.create_dataset(f'/36.{rid}/electron_temperature', data=slp_electron_temp, dtype=np.float64)
-        ds.attrs['description'] = 'electron temperature'
+        ds.attrs['description'] = 'Electron temperature'
         ds.attrs['units'] = 'Kelvin'
         
     slp_data_h5.close()
@@ -268,14 +276,12 @@ def convert_slp_data() -> None:
 def get_slp_data(
         rid: int,
         ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    
     slp_path = Path(SAILBOAT_ROOT, 'data', 'apep', 'slp.h5')
     with h5py.File(slp_path) as f:
         slp_data_h5 = f[f'36.{rid}']
         assert(isinstance(slp_data_h5, h5py.Group))
-        day0 = str(slp_data_h5.attrs['description']).split(' of ')[-1]
         time = np.array(slp_data_h5['time'], dtype=np.int64)
-        time = np.datetime64(day0, 'us') + time.astype('timedelta64[us]')
+        time = np.datetime64('2023-10-14', 'us') + time.astype('timedelta64[us]')
         gdalt = np.array(slp_data_h5['altitude'], dtype=np.float64)
         ion_density = np.array(slp_data_h5['ion_density'], dtype=np.float64)
         electron_temperature = np.array(slp_data_h5['electron_temperature'], dtype=np.float64)
@@ -312,7 +318,7 @@ def get_trajectory(
     with h5py.File(ephemeris_path) as ephemeris_data_h5:
         ephemeris_data_group = ephemeris_data_h5[f'36.{rid}/{data_type}']
         assert(isinstance(ephemeris_data_group, h5py.Group))
-        day0 = str(ephemeris_data_group['time'].attrs['description']).split(' of ')[-1]
+        day0 = ephemeris_data_group['time'].attrs['Description'].split(' of ')[-1]
         time = np.array(ephemeris_data_group['time'], dtype=np.int64)
         time = np.datetime64(day0, 'us') + time.astype('timedelta64[us]')
         gdlon = np.array(ephemeris_data_group['longitude'], dtype=np.float64)

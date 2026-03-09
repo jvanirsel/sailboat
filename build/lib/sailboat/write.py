@@ -1,5 +1,5 @@
-from . import utils, GEMINI_ROOT, VEGA_USERNAME
 from gemini3d import read
+from sailboat import HOME, GEMINI_ROOT
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -111,14 +111,15 @@ def pbs(
         suffix = datetime.strftime(datetime.now(), '_%Y%m%dT%H%M%S')
 
     sim_name = sim_direc.name
-    log_direc = Path('~', 'logs')
-    scratch_direc = Path('~', 'scratch')
+    log_direc = Path(HOME, 'logs')
+    scratch_direc = Path(HOME, 'scratch')
     work_direc = Path(scratch_direc, sim_name + suffix)
 
     if not sim_direc.is_dir():
         raise NotADirectoryError(f'Cannot find simulation directory: {sim_direc}')
+    log_direc.mkdir(exist_ok=True)
     if not email:
-        email = f'{VEGA_USERNAME}@erau.edu'
+        email = f'{HOME.name}@erau.edu'
 
     pbs_path = Path(sim_direc, 'submit.pbs')
     stdout_path = Path(log_direc, sim_name + '.${PBS_JOBID}.out')
@@ -139,8 +140,6 @@ def pbs(
         'openmpi/5.0.2-gcc-8.5.0-diludms',
         'netlib-lapack/3.11.0-gcc-8.5.0-hlxv33x',
         ]
-
-    sim_direc = utils.collapseuser(sim_direc)
 
     with open(pbs_path, 'w') as f:
         f.write('# Command options:\n')

@@ -2,9 +2,9 @@ README.md
 pyproject.toml
 src/sailboat/__init__.py
 src/sailboat/apep.py
+src/sailboat/check_sim_progress.py
 src/sailboat/interpolate.py
 src/sailboat/plot.py
-src/sailboat/read.py
 src/sailboat/sim.py
 src/sailboat/utils.py
 src/sailboat/write.py
@@ -12,4 +12,8 @@ src/sailboat.egg-info/PKG-INFO
 src/sailboat.egg-info/SOURCES.txt
 src/sailboat.egg-info/dependency_links.txt
 src/sailboat.egg-info/top_level.txt
-src/sailboat/data/apep_ephem_to_h5.py
+src/sailboat/rpa/__init__.py
+src/sailboat/rpa/plot.py
+src/sailboat/rpa/read.py
+src/sailboat/rpa/sim.py
+src/sailboat/rpa/write.py

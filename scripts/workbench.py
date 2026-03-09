@@ -8,55 +8,9 @@ from scipy.ndimage import gaussian_filter1d
 from pathlib import Path
 import scipy
 
-for year in ['2023', '2024']:
-    solflux_in_direc = Path(SAILBOAT_ROOT, 'data', 'apep', year, 'fism2')
-    solflux_in_extension = 'sav' if year == '2024' else 'nc4'
-    solflux_filenames =  [f for f in solflux_in_direc.iterdir() if f.is_file() and f.suffix == f'.{solflux_in_extension}']
-    id0 = 12 if year == '2024' else 13
-    solflux_times = [datetime.strptime(f.name[id0:id0+15], '%Y%m%d_%H%M%S') for f in solflux_filenames]
 
-    solflux_path = Path(solflux_in_direc, solflux_filenames[0])
-
-    if year == '2023':
-        with h5py.File(solflux_path, 'r') as solflux_data:
-            print(solflux_data.keys())
-            solflux_tgcm_data = solflux_data['sb_tgcm'] # first 22 tgcm spectral bins match gemini bins
-            assert isinstance(solflux_tgcm_data, h5py.Group)  # narrows type for pylance checker
-            glat = np.array(solflux_data['Lat'], dtype=np.float64) # degrees
-            glon = np.array(solflux_data['Lon'], dtype=np.float64) # degrees
-            wvl0 = np.array(solflux_tgcm_data['Start_wavelength'], dtype=np.float64)
-            wvl1 = np.array(solflux_tgcm_data['End_wavelength'], dtype=np.float64)
-            # wvl0 = wvl0[:22] * 1e-0 # m
-            # wvl1 = wvl1[:22] * 1e-0 # m
-    else:
-        solflux_data = scipy.io.readsav(solflux_path)
-        glat = np.array(solflux_data['lat'], dtype=np.float64) # degrees
-        glon = np.array(solflux_data['lon'], dtype=np.float64) # degrees
-        wvl0n = np.array(solflux_data['start_wv'], dtype=np.float64)
-        wvl1n = np.array(solflux_data['end_wv'], dtype=np.float64)
-        # wvl0n = wvl0n * 1e-0 # m
-        # wvl1n = wvl1n * 1e-0 # m
-
-        print(solflux_data.keys())
-# for i in range(len(wvl0)):
-#     print(f'{wvl0[i]:.2f}, {wvl1[i]:.2f}')
-# for i in range(len(wvl0n)):
-#     print(f'{wvl0n[i]:.2f}, {wvl1n[i]:.2f}')
-
-    # print(glon)
-
-    # solflux_tgcm_data = solflux_data['sb_tgcm']
-
+sim.setup('apep2_392_hires')
 quit()
-
-fn = SAILBOAT_ROOT / 'data' / 'apep' / '2024' / 'fism2' / 'fism_masked_20240408_170000_gitm.sav'
-# df, meta = pyreadstat.read_sav(fn)
-# print(meta.column_names)
-df = scipy.io.readsav(fn)
-print(df.keys())
-quit(1)
-
-# sim_name = f'apep1_387_hires'
 # # sim_name = 'test'
 # sim_direc = Path(GEMINI_SIM_ROOT, sim_name)
 # cfg = read.config(sim_direc)

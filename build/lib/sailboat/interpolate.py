@@ -1,4 +1,4 @@
-from . import _RE
+from sailboat import _RE
 from gemini3d import read
 from gemini3d.grid import convert
 from datetime import datetime

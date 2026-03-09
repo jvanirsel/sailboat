@@ -1,4 +1,4 @@
-from . import utils, write, plot, GEMINI_SIM_ROOT
+from sailboat import utils, write, plot, GEMINI_SIM_ROOT
 from gemini3d import read, model
 from pathlib import Path
 
@@ -37,10 +37,9 @@ def setup(
             write.eq_config(sim_direc)
             model.setup(eq_direc, eq_direc)
         write.pbs(eq_direc, num_nodes=1)
-        utils.vega_rsync(eq_direc, eq_direc.parent)
-        command = 'msub ' + str(utils.collapseuser(eq_direc) / 'submit.pbs')
+        command = 'msub ' + str(eq_direc / 'submit.pbs')
         raise FileNotFoundError('Equilibrium simulation setup done. ' \
-                                f'Please run the following command on VEGA:\n\n{command}\n')
+                                f'Please run the following command:\n\n{command}\n')
     print(' Equilibrium simulation done...')
 
     # setup simulation

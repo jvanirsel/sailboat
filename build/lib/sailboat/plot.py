@@ -1,4 +1,4 @@
-from . import GEMINI_SIM_ROOT, _RE, utils as su
+from sailboat import GEMINI_SIM_ROOT, _RE, utils as su
 from gemini3d import read, utils as gu
 import numpy as np
 import matplotlib.pyplot as plt
