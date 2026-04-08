@@ -39,12 +39,13 @@ def rpa(
     num_screens = len(screen_locations)
     floating_potential = float(cfg_rpa['floating_potential'])
     screen_voltages += floating_potential
-    sweep_id = int(cfg_rpa['sweep_id'])
+    sweep_ids = np.array(cfg_rpa['sweep_ids']).astype(int)
     is_ivm = bool(cfg_rpa['is_ivm'])
+    shape = 'square' if bool(cfg_rpa['square_aperture']) else 'circle'
 
     screens = []
     for sid in range(num_screens):
-        if sid == sweep_id:
+        if sid in sweep_ids:
             v = Sweep(
                 min_voltage = float(cfg_rpa['sweep_limits'][0]),
                 max_voltage = float(cfg_rpa['sweep_limits'][1]),
@@ -64,17 +65,12 @@ def rpa(
     return RPA(
         screens = screens,
         geometry = RPAGeometry(
-            sensor = (
-                float(cfg_rpa['sensor_size'][0]),
-                float(cfg_rpa['sensor_size'][1])
-            ), # millimeters
-            aperture = (
-                float(cfg_rpa['aperture_size'][0]),
-                float(cfg_rpa['aperture_size'][1])
-            ) # millimeters
+            aperture_size = float(cfg_rpa['aperture_size']), # millimeters
+            sensor_size = float(cfg_rpa['sensor_size']), # millimeters
+            aperture_shape = shape
             ),
         floating_potential = floating_potential,
-        is_ivm = is_ivm
+        is_ivm = is_ivm,
     )
 
 

@@ -12,16 +12,18 @@ def rays(
         rpa: RPA,
         plasma: Plasma,
         do_electrons: bool = False,
-        debug: bool = False
+        debug: bool = False,
+        is_example_plot: bool = False
         ) -> None:
 
     from . import sim
 
     # geometry
-    xa = rpa.aperture[0] / 2
-    ya = rpa.aperture[1] / 2
-    xs = rpa.sensor[0] / 2
-    ys = rpa.sensor[1] / 2
+    xa = rpa.aperture_size / 2
+    ya = rpa.aperture_size / 2
+    xs = rpa.sensor_size / 2
+    ys = rpa.sensor_size / 2
+    z0 = rpa.screens[0].location
     zd = rpa.depth
     max_size = 1.5 * max(2 * xs, 2 * ys, zd)
 
@@ -38,9 +40,9 @@ def rays(
     plt.style.use('dark_background')
     plt.rcParams["grid.alpha"] = 0.2
     plt.grid(True)
-    plot_width = 16
+    plot_width = 10 if is_example_plot else 16
     fig, axs = plt.subplots(2, 3,
-                            figsize=(plot_width, plot_width * 5/9),
+                            figsize=(plot_width, plot_width * 5/9 * 1.02),
                             gridspec_kw={'width_ratios': [4, 4, 1], 'height_ratios': [4, 1]}
                             )
 
@@ -54,18 +56,30 @@ def rays(
         if debug:
             ax.scatter(ray[::10, 2], ray[::10, 1], color='w', alpha=0.9, marker='.', s=1, linewidths=0)
             ax.scatter(ray[-1, 2], ray[-1, 1], color='r', marker='.', s=3,  linewidths=1)
-    dy = 0
+    z_prev = -999.0
+    z_offset = 0.0
+    min_dz = 10.0
     for screen in rpa.screens:
         z = screen.location
         ax.plot([z, z], [-ys, ys], color='w', linestyle='--', linewidth=1) # screens
         z_unit = ' mm' if z == 0.0 else ''
         v_unit = ' V' if z == 0.0 else ''
-        ax.text(z, ys / 2 + max_size / 4 - dy, f'{screen.voltage:.1f}{v_unit}', fontsize=8, ha='center', va='center', rotation=90)
-        ax.text(z, -ys / 2 - max_size / 4 + dy, f'{screen.location:.1f}{z_unit}', fontsize=8, ha='center', va='center', rotation=-90)
+        z_str = f'{screen.location:.1f}{z_unit}'
+        v_str = f'{screen.voltage:.1f}{v_unit}'
+        if z - z_prev < min_dz:
+            z_offset += 2.6
+        else:
+            z_offset = 0
+        y_text = (ys / 2 + max_size / 4) * 0.9
+        ax.plot([z, z + z_offset], [ys, y_text - 1], 'w', linewidth=0.5)
+        ax.plot([z, z + z_offset], [-ys, -y_text + 1], 'w', linewidth=0.5)
+        ax.text(z + z_offset, y_text, v_str, fontsize=8, ha='center', va='bottom', rotation=90)
+        ax.text(z + z_offset, -y_text, z_str, fontsize=8, ha='center', va='top', rotation=90)
+        z_prev = z
     ax.plot([zd, zd], [-ys, ys], color='g', linestyle='--', linewidth=1) # sensor
-    ax.plot([0, 0, zd + 1, zd + 1, 0, 0], [ya, ys, ys, -ys, -ys, -ya], color='y', linewidth=5) # enclosure
-    ax.plot([-1, 1, np.nan, -1, 1], [ya, ya, np.nan, -ya, -ya], color='r', linewidth=5) # aperture
-    ax.plot([0, 0, 0, 0, 0], [-max_size, -ys, np.nan, ys, max_size], color='y', linewidth=2) # aperture shield
+    ax.plot([z0, 0, 0, 0, zd + 1, zd + 1, 0, 0, 0, z0], [ys, ys, ya, ys, ys, -ys, -ys, -ya, -ys, -ys], color='y', linewidth=5) # enclosure
+    ax.plot([0, 0, np.nan, 0, 0], [ya * 1.02, ya, np.nan, -ya, -ya * 1.02], color='r', linewidth=5) # aperture
+    # ax.plot([0, 0, 0, 0, 0], [-max_size, -ys, np.nan, ys, max_size], color='y', linewidth=2) # aperture shield
         
     ax.set_xlabel('z (mm)')
     ax.set_ylabel('y (mm)')
@@ -82,16 +96,21 @@ def rays(
     weights = ray_rates[sensor_hits[:, 2].astype(int)]  / np.sum(ray_rates)
 
     ax.scatter(sensor_hits[:, 0], sensor_hits[:, 1], s=weights * 1e4, color='w', alpha=0.7)
-    ax.plot([-xs, xs, xs, -xs, -xs], [-ys, -ys, ys, ys, -ys], color='g', linewidth=5) # sensor
-    ax.plot([-xa, xa, xa, -xa, -xa], [-ya, -ya, ya, ya, -ya], color='r', linewidth=5, alpha=0.5) # aperture
+    ax.plot([-xs, xs, xs, -xs, -xs], [-ys, -ys, ys, ys, -ys], color='y', linewidth=5) # sensor
+    if rpa.aperture_shape == 'square':
+        ax.plot([-xa, xa, xa, -xa, -xa], [-ya, -ya, ya, ya, -ya], color='r', linewidth=5, alpha=0.5) # aperture
+    else:
+        circle_x = [xa * np.cos(t) for t in np.linspace(0, 2*np.pi, 100)]
+        circle_y = [xa * np.sin(t) for t in np.linspace(0, 2*np.pi, 100)]
+        ax.plot(circle_x, circle_y, color='r', linewidth=5, alpha=0.5) # aperture
     if rpa.is_ivm:
         off = 1.1
         ax.text( xs * off,  ys * off, 'I', color='w', size=15, ha='center', va='center')
         ax.text(-xs * off,  ys * off, 'II', color='r', size=15, ha='center', va='center')
-        ax.text(-xs * off, -ys * off, 'III', color='g', size=15, ha='center', va='center')
-        ax.text( xs * off, -ys * off, 'IV', color='b', size=15, ha='center', va='center')
-        ax.plot([0, 0], [-ys, ys], color='g', linewidth=2) # sensor split lines
-        ax.plot([-xs, xs], [0, 0], color='g', linewidth=2) # sensor split lines
+        ax.text(-xs * off, -ys * off, 'III', color='m', size=15, ha='center', va='center')
+        ax.text( xs * off, -ys * off, 'IV', color='g', size=15, ha='center', va='center')
+        ax.plot([0, 0], [-ys, ys], color='y', linewidth=2) # sensor split lines
+        ax.plot([-xs, xs], [0, 0], color='y', linewidth=2) # sensor split lines
 
     ax.set_xlabel('x (mm)')
     ax.set_xlim(-max_size / 2, max_size / 2)
@@ -105,7 +124,7 @@ def rays(
     ax = axs[0, 2]
     assert(isinstance(ax, Axes))
     bin_centers, current_density = hits_histogram(sensor_hits, plasma, ray_rates, 1, do_electrons=do_electrons)
-    max_current_density = max(rpa.aperture) * jz
+    max_current_density = jz * rpa.aperture_area**0.5
     if do_electrons:
         max_current_density /= -plasma.Z
 
@@ -140,9 +159,9 @@ def rays(
     ax = axs[1, 0]
     assert(isinstance(ax, Axes))
     sweep = rpa.screens[rpa.sweep_screen_id].sweep.voltages
-    max_current = rpa.aperture[0] * rpa.aperture[1] * jz
+    max_current =  jz * rpa.aperture_area
     if rpa.is_ivm:
-        max_current_factor = 0.5
+        max_current_factor = 0.3
     else:
         max_current_factor = 1.0
     if do_electrons:
@@ -154,8 +173,8 @@ def rays(
     if rpa.is_ivm:
         ax.plot(rpa.iv_curve[:, 0], rpa.iv_curve[:, 1], color='w', linewidth=3)
         ax.plot(rpa.iv_curve[:, 0], rpa.iv_curve[:, 2], color='r', linewidth=3)
-        ax.plot(rpa.iv_curve[:, 0], rpa.iv_curve[:, 3], color='g', linewidth=3)
-        ax.plot(rpa.iv_curve[:, 0], rpa.iv_curve[:, 4], color='b', linewidth=3)
+        ax.plot(rpa.iv_curve[:, 0], rpa.iv_curve[:, 3], color='m', linewidth=3)
+        ax.plot(rpa.iv_curve[:, 0], rpa.iv_curve[:, 4], color='g', linewidth=3)
     else:
         ax.plot(rpa.iv_curve[:, 0], rpa.iv_curve[:, 1], color='w', linewidth=3)
     # ax.plot(voltage_centers, -dIdV, color='b', linewidth=3)
@@ -171,20 +190,25 @@ def rays(
     assert(isinstance(ax, Axes))
     ax.axis('off')
 
-    fig.suptitle(
-        f'Beam vel.: ({plasma.V[0]:.1f}, {plasma.V[1]:.1f}, {plasma.V[2]:.1f}) km s^-1' +
-        f' — Beam energy: {plasma.K:.1f} eV' +
-        f' — Ion temp.: (beam, bg) = ({plasma.Ti[0]:.1f}, {plasma.Ti[1]:.1f}) eV' +
-        f' — Elec. temp.: (beam, bg) = ({plasma.Te[0]:.1f}, {plasma.Te[1]:.1f}) eV' +
-        f' — Dens.: (beam, bg) = ({plasma.N[0]}, {plasma.N[1]}) mm^-3\n'
-        f'Magnetic field: ({1e6*plasma.B[0]:.1f}, {1e6*plasma.B[1]:.1f}, {1e6*plasma.B[2]:.1f}) uT' +
-        f' — Number of rays: {len(rays)}' +
-        f' — Measured currents: (aperture, bias, sensor) = ({currents[0]:.1f}, {currents[1]:.1f}, {currents[2]:.1f}) nA' +
-        f' — Maximum aperture current: {max_current:.1f} nA'
-        )
-    fig.subplots_adjust(left=0.05, right=0.95, bottom=0.06, top=0.88, wspace=0.07, hspace=0.07)
+    if is_example_plot:
+        fig.subplots_adjust(left=0.06, right=0.94, bottom=0.08, top=0.92, wspace=0.1, hspace=0.1)
+    else:
+        fig.suptitle(
+            f'Beam vel.: ({plasma.V[0]:.1f}, {plasma.V[1]:.1f}, {plasma.V[2]:.1f}) km s^-1' +
+            f' — Beam energy: {plasma.K:.1f} eV' +
+            f' — Ion temp.: (beam, bg) = ({plasma.Ti[0]:.1f}, {plasma.Ti[1]:.1f}) eV' +
+            f' — Elec. temp.: (beam, bg) = ({plasma.Te[0]:.1f}, {plasma.Te[1]:.1f}) eV' +
+            f' — Dens.: (beam, bg) = ({plasma.N[0]}, {plasma.N[1]}) mm^-3\n'
+            f'Magnetic field: ({1e6*plasma.B[0]:.1f}, {1e6*plasma.B[1]:.1f}, {1e6*plasma.B[2]:.1f}) uT' +
+            f' — Number of rays: {len(rays)}' +
+            f' — Measured currents: (aperture, bias, sensor) = ({currents[0]:.1f}, {currents[1]:.1f}, {currents[2]:.1f}) nA' +
+            f' — Maximum aperture current: {max_current:.1f} nA'
+            )
+        fig.subplots_adjust(left=0.05, right=0.95, bottom=0.06, top=0.88, wspace=0.07, hspace=0.07)
     fig.show()
 
+    if is_example_plot:
+        plot_path = plot_path.with_stem(plot_path.stem + '_eg')
     print(f'Saving figure ...', end='\r')
     plot_path.parent.mkdir(exist_ok=True)
     fig.savefig(plot_path, dpi=600)

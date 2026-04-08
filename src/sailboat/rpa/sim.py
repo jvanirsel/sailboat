@@ -8,11 +8,13 @@ def run(
         rpa_direc: Path,
         save: bool = True,
         do_electrons: bool = False,
-        debug: bool = False
+        debug: bool = False,
+        do_example_plots: bool = False
         ) -> None:
 
     from . import read, plot, sim, write
 
+    rpa_direc = rpa_direc.expanduser()
     if not rpa_direc.is_dir():
         raise FileNotFoundError(f'RPA directory {rpa_direc} not found')
     
@@ -26,7 +28,12 @@ def run(
     h5_path = rpa_direc / f'config_{cfg_id:02d}_data{sffx}.h5'
     num_sweep_ids = cfg['num_sweeps']
 
-    if h5_path.is_file():
+    if do_example_plots:
+        save = False
+        print('\n' + 80 * '!')
+        print(' NOT SAVING DATA '.center(80, '!'))
+        print(80 * '!' + '\n')
+    elif h5_path.is_file():
         while True:
             overwrite = input(f'Overwrite {h5_path} (Y/n)?: ')
             if overwrite == 'Y':
@@ -78,17 +85,19 @@ def run(
 
         png_path = plot_direc / f'config_{cfg_id:02d}_step_{sweep_id:03d}{sffx}.png'
         print('Plotting rays '.ljust(75, '.'), end='\r')
-        plot.rays(png_path, rays, ray_rates, currents_now, rpa, plasma, do_electrons=do_electrons, debug=debug)
+        plot.rays(png_path, rays, ray_rates, currents_now, rpa, plasma, do_electrons=do_electrons, debug=debug, is_example_plot=do_example_plots)
         print('Plotting rays '.ljust(75, '.') + ' done')
 
         rpa.step_sweep()
     
+    del rays
+
     if save:
         write.iv_curve(h5_path, rpa)
         write.all_currents(h5_path, currents)
     
     gif_path = rpa_direc / f'config_{cfg_id:02d}{sffx}.gif'
-    utils.make_gif(plot_direc, prefix=f'config_{cfg_id:02d}_step', filename=gif_path)
+    # utils.make_gif(plot_direc, prefix=f'config_{cfg_id:02d}_step', filename=gif_path)
 
 
 def rays(
@@ -120,18 +129,18 @@ def rays(
     :rtype: tuple[numpy.ndarray, numpy.ndarray]
     '''
 
-    x_range_sim = (-rpa.sensor[0], rpa.sensor[0])
-    y_range_sim = (-rpa.sensor[1], rpa.sensor[1])
+    x_range_sim = (-rpa.sensor_size, rpa.sensor_size)
+    y_range_sim = (-rpa.sensor_size, rpa.sensor_size)
     z_range_sim = (-rpa.depth, rpa.depth + 2 * dx_max)
-    x_range_sensor = (-rpa.sensor[0] / 2, rpa.sensor[0] / 2)
-    y_range_sensor = (-rpa.sensor[1] / 2, rpa.sensor[1] / 2)
-    x_range_aperture = (-rpa.aperture[0] / 2, rpa.aperture[0] / 2)
-    y_range_aperture = (-rpa.aperture[1] / 2, rpa.aperture[1] / 2)
-    x_range_source = (-rpa.source[0] / 2, rpa.source[0] / 2)
-    y_range_source = (-rpa.source[1] / 2, rpa.source[1] / 2)
+    x_range_sensor = (-rpa.sensor_size / 2, rpa.sensor_size / 2)
+    y_range_sensor = (-rpa.sensor_size / 2, rpa.sensor_size / 2)
+    x_range_aperture = (-rpa.aperture_size / 2, rpa.aperture_size / 2)
+    y_range_aperture = (-rpa.aperture_size / 2, rpa.aperture_size / 2)
+    x_range_source = (-rpa.source_size / 2, rpa.source_size / 2)
+    y_range_source = (-rpa.source_size / 2, rpa.source_size / 2)
     z_range_source = (-rpa.depth, -rpa.depth)
 
-    linear_aperture_particle_density = (plasma.N[0] + plasma.N[1]) * rpa.source[0] * rpa.source[1] / num_rays # particles / millimeter
+    linear_aperture_particle_density = (plasma.N[0] + plasma.N[1]) * rpa.source_area / num_rays # particles / millimeter
 
     print(f'Allocating {(num_rays * max_steps * 3 * 8)/(1024**3):.2f} GB ray matrix '.ljust(75, '.'), end='\r')
     rays = np.full((num_rays, max_steps, 3), np.nan, dtype=float)
@@ -177,10 +186,14 @@ def rays(
                 # in the plane of aperture
                 if z > -dx_max:
                     # does not pass through aperture, hit aperture shield
-                    if x < x_range_aperture[0] or x > x_range_aperture[1]:
-                        break
-                    if y < y_range_aperture[0] or y > y_range_aperture[1]:
-                        break
+                    if rpa.aperture_shape == 'square':
+                        if x < x_range_aperture[0] or x > x_range_aperture[1]:
+                            break
+                        if y < y_range_aperture[0] or y > y_range_aperture[1]:
+                            break
+                    else:
+                        if x**2 + y**2 > (rpa.aperture_size / 2)**2:
+                            break
                 # out of simulation x or y range
                 if x < x_range_sim[0] or x > x_range_sim[1]:
                     break

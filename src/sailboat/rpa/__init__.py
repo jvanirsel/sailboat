@@ -77,14 +77,23 @@ class Screen:
 class RPAGeometry:
     def __init__(
             self,
-            sensor: tuple[float, float],
-            aperture: tuple[float, float]
+            aperture_size: float,
+            sensor_size: float,
+            aperture_shape: str
             ):
         
-        self.sensor = sensor
-        self.aperture = aperture
-        self.source = (sensor[0] + 2 * aperture[0], sensor[1] + 2 * aperture[1])
+        source_size = sensor_size + 2 * aperture_size
+        source_area = source_size**2
+        aperture_area = aperture_size**2 if aperture_shape == 'square' else np.pi * (aperture_size / 2)**2
+        sensor_area = sensor_size**2
 
+        self.source_size = source_size
+        self.aperture_size = aperture_size
+        self.sensor_size = sensor_size
+        self.source_area = source_area
+        self.aperture_area = aperture_area
+        self.sensor_area = sensor_area
+        self.aperture_shape = aperture_shape
 
 class RPA:
     def __init__(
@@ -99,9 +108,13 @@ class RPA:
             raise ValueError('screens list must not be empty')
 
         self.screens = sorted(screens, key=lambda s: s.location)
-        self.sensor = geometry.sensor
-        self.aperture = geometry.aperture
-        self.source = geometry.source
+        self.source_size = geometry.source_size
+        self.aperture_size = geometry.aperture_size
+        self.sensor_size = geometry.sensor_size
+        self.source_area = geometry.source_area
+        self.aperture_area = geometry.aperture_area
+        self.sensor_area = geometry.sensor_area
+        self.aperture_shape = geometry.aperture_shape
         self.depth = self.screens[-1].location
         sweep_len = 0
         sweep_screen_id = -1

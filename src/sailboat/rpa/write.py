@@ -11,7 +11,7 @@ def config_data(
         ) -> None:
 
     # when writing config data, overwrite file, otherwise append
-    with h5py.File(save_path, 'w') as h5f:
+    with h5py.File(save_path.expanduser(), 'w') as h5f:
 
         group = '/simulation/'
         h5ds(h5f, group + 'num_rays', cfg['num_rays'], np.int64, 'Number of simulated rays', 'n/a')
@@ -21,9 +21,10 @@ def config_data(
         h5ds(h5f, group + 'time_step_factor', cfg['dt_factor'], np.float64, 'time step x curvature x speed (dt x kappa x v)', 'n/a')
 
         group = '/rpa/geometry/'
-        h5ds(h5f, group + 'source', rpa.source, np.float64, 'Plasma source dimensions (x, y)', 'millimeter')
-        h5ds(h5f, group + 'aperture', rpa.aperture, np.float64, 'Aperture dimensions (x, y)', 'millimeter')
-        h5ds(h5f, group + 'sensor', rpa.sensor, np.float64, 'Sensor dimensions (x, y)', 'millimeter')
+        h5ds(h5f, group + 'aperture_shape', rpa.aperture_shape, str, 'Aperture shape', 'n/a')
+        h5ds(h5f, group + 'source_size', rpa.source_size, np.float64, 'Plasma source size', 'millimeter')
+        h5ds(h5f, group + 'aperture_size', rpa.aperture_size, np.float64, 'Aperture side length', 'millimeter')
+        h5ds(h5f, group + 'sensor_size', rpa.sensor_size, np.float64, 'Sensor side length', 'millimeter')
         h5ds(h5f, group + 'depth', rpa.depth, np.float64, 'Distance from aperture to sensor', 'millimeter')
 
         group = '/rpa/screens/'
