@@ -7,14 +7,15 @@ from pathlib import Path
 def check_sim_progress(
         sim_name: str
         ) -> None:
+    
     # sim_direc_base = path.join(HOME, 'scratch', sim_name)
     scratch_direc = Path('~', 'scratch').expanduser()
-    sim_direcs = [d for d in scratch_direc.iterdir() if d.name == sim_name]
-    if len(sim_direcs) == 1:
-        sim_direc = Path(scratch_direc, sim_direcs[0])
-    else:
-        raise FileExistsError('Two or more simulation directories found.' \
-        ' Please specify further.')
+    # sim_direcs = [d for d in scratch_direc.iterdir() if d.name == sim_name]
+    # if len(sim_direcs) == 1:
+    sim_direc = Path(scratch_direc, sim_name)
+    # else:
+        # raise FileExistsError('Two or more simulation directories found.' \
+        # ' Please specify further.')
 
     cfg = read.config(sim_direc)
     sim_times: list[datetime] = cfg['time']
