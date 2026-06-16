@@ -14,43 +14,61 @@ def setup(
     '''
 
     # read configuration and equilibrium directory
-    sim_direc = Path(GEMINI_SIM_ROOT, sim_name)
+    sim_direc = Path(GEMINI_SIM_ROOT, sim_name).expanduser()
     cfg = read.config(sim_direc)
     eq_direc = Path(cfg['eq_dir'])
 
     if utils.simulation_finished(sim_direc):
-        raise FileExistsError('Simulation already done')
+        print(f'Simulation {sim_direc} already finished')
+        return
 
     if not eq_direc.is_dir():
-        eq_direc.mkdir()
-        print(f' Created equilibrium directory: {eq_direc}')
+        try:
+            eq_direc.mkdir()
+        except FileNotFoundError:
+            eq_direc.parent.mkdir()
+            eq_direc.mkdir()
+        print(f'Created equilibrium directory: {eq_direc}')
 
     # check if activity levels match
     if utils.internet_access():
         utils.check_activity(cfg)
     else:
-        print(' No internet access; skipped activity levels check...')
+        print('No internet access; skipped activity levels check...')
 
     # setup equilibrium simulation
     if not utils.simulation_finished(eq_direc):
         if not utils.simulation_finished_setup(eq_direc):
             write.eq_config(sim_direc)
             model.setup(eq_direc, eq_direc)
-        write.pbs(eq_direc, num_nodes=1)
+        write.pbs(eq_direc)
         utils.vega_rsync(eq_direc, eq_direc.parent)
         command = 'msub ' + str(utils.collapseuser(eq_direc) / 'submit.pbs')
-        raise FileNotFoundError('Equilibrium simulation setup done. ' \
+        print('Equilibrium simulation setup done. ' \
                                 f'Please run the following command on VEGA:\n\n{command}\n')
-    print(' Equilibrium simulation done...')
+        return
+    print('Equilibrium simulation done...')
 
     # setup simulation
-    if not utils.simulation_finished_setup(sim_direc):
-        model.setup(sim_direc, sim_direc)
-    write.pbs(sim_direc)
-    command = 'msub ' + str(sim_direc / 'submit.pbs')
-    print('Simulation setup finished. ' \
-        f'Run the following command to submit job:\n\n{command}\n')
+    if not utils.simulation_finished(sim_direc):
+        if not utils.simulation_finished_setup(sim_direc):
+            model.setup(sim_direc, sim_direc)
+        write.pbs(sim_direc)
+        utils.vega_rsync(sim_direc, sim_direc.parent)
+        command = 'msub ' + str(utils.collapseuser(sim_direc) / 'submit.pbs')
+        print('Simulation setup finished. ' \
+            f'Please run the following command on VEGA:\n\n{command}\n')
+        return
+    print('Simulation done...')
 
+
+def copy_from_vega(
+        sim_name: str
+        ) -> None:
+    
+    sim_direc = Path(GEMINI_SIM_ROOT, sim_name).expanduser()
+    utils.vega_rsync(sim_direc, sim_direc / '*', receive=True)
+    
 
 def process(
         sim_name: str

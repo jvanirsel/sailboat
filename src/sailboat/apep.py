@@ -36,10 +36,10 @@ def convert_solar_flux(
         t += sim_solflux_dt
 
     ## read input filenames
-    solflux_filenames =  [f for f in solflux_in_direc.iterdir() if f.is_file() and f.suffix == f'.{solflux_in_extension}']
+    solflux_filenames = sorted([f for f in solflux_in_direc.expanduser().iterdir() if f.is_file() and f.suffix == f'.{solflux_in_extension}'])
     if not solflux_filenames:
         raise FileNotFoundError(f'No .{solflux_in_extension} files found in {solflux_in_direc}')
-    solflux_times = [datetime.strptime(f.name[13:28], '%Y%m%d_%H%M%S') for f in solflux_filenames]
+    solflux_times = [datetime.strptime(f.name[12:27], '%Y%m%d_%H%M%S') for f in solflux_filenames]
     if solflux_times[0] - sim_solflux_dt > sim_times[0] or \
        solflux_times[-1] + sim_solflux_dt < sim_times[-1]:
         raise ValueError('Solar flux data out of simulation time range\n' \
@@ -171,7 +171,7 @@ def convert_ephemeris() -> None:
         ds.attrs['description'] = 'geodetic altitude'
         ds.attrs['units'] = 'meters'
 
-        print('done')
+        print('Done')
         print('Writing interpolated data...', end='')
 
         is_above_min_alt = gdalt > min_alt
@@ -206,7 +206,7 @@ def convert_ephemeris() -> None:
         ds.attrs['description'] = 'interpolated geodetic altitude'
         ds.attrs['units'] = 'meters'
 
-        print('done')
+        print('Done')
 
     ephemeris_data_h5.close()
 
@@ -299,8 +299,8 @@ def fix_ephemeris_txt_files() -> None:
                     f.write(line)
                 else:
                     count += 1
-                    print(f' Problem at {line_num}')
-            print(f' Found and fixed {count} problematic lines.')
+                    print(f'Problem at {line_num}')
+            print(f'Found and fixed {count} problematic lines.')
 
 
 def get_trajectory(
@@ -308,7 +308,7 @@ def get_trajectory(
         data_type: str = 'interpolated',
         ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     
-    ephemeris_path = Path(SAILBOAT_ROOT, 'data', 'apep', 'ephemeris.h5')
+    ephemeris_path = Path(SAILBOAT_ROOT, 'data', 'apep', 'ephemeris.h5').expanduser()
     with h5py.File(ephemeris_path) as ephemeris_data_h5:
         ephemeris_data_group = ephemeris_data_h5[f'36.{rid}/{data_type}']
         assert(isinstance(ephemeris_data_group, h5py.Group))

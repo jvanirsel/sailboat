@@ -13,7 +13,8 @@ def rays(
         plasma: Plasma,
         do_electrons: bool = False,
         debug: bool = False,
-        is_example_plot: bool = False
+        is_example_plot: bool = False,
+        dark_background: bool = False
         ) -> None:
 
     from . import sim
@@ -37,7 +38,13 @@ def rays(
     # print(plasma.jz)
     jz = plasma.jz + jz_floating
 
-    plt.style.use('dark_background')
+    if dark_background:
+        plt.style.use('dark_background')
+        bg = 'k'
+        fg = 'w'
+    else:
+        bg = 'w'
+        fg = 'k'
     plt.rcParams["grid.alpha"] = 0.2
     plt.grid(True)
     plot_width = 10 if is_example_plot else 16
@@ -52,16 +59,16 @@ def rays(
 
     for ray in rays[::max(len(rays) // 1000, 1)]:
         ray = ray[~np.isnan(ray[:, 0]), :]
-        ax.plot(ray[:, 2], ray[:, 1], color='w', alpha=0.9, linewidth=0.1)
+        ax.plot(ray[:, 2], ray[:, 1], color=fg, alpha=0.9, linewidth=0.1)
         if debug:
-            ax.scatter(ray[::10, 2], ray[::10, 1], color='w', alpha=0.9, marker='.', s=1, linewidths=0)
+            ax.scatter(ray[::10, 2], ray[::10, 1], color=fg, alpha=0.9, marker='.', s=1, linewidths=0)
             ax.scatter(ray[-1, 2], ray[-1, 1], color='r', marker='.', s=3,  linewidths=1)
     z_prev = -999.0
     z_offset = 0.0
     min_dz = 10.0
     for screen in rpa.screens:
         z = screen.location
-        ax.plot([z, z], [-ys, ys], color='w', linestyle='--', linewidth=1) # screens
+        ax.plot([z, z], [-ys, ys], color=fg, linestyle='--', linewidth=1) # screens
         z_unit = ' mm' if z == 0.0 else ''
         v_unit = ' V' if z == 0.0 else ''
         z_str = f'{screen.location:.1f}{z_unit}'
@@ -71,8 +78,8 @@ def rays(
         else:
             z_offset = 0
         y_text = (ys / 2 + max_size / 4) * 0.9
-        ax.plot([z, z + z_offset], [ys, y_text - 1], 'w', linewidth=0.5)
-        ax.plot([z, z + z_offset], [-ys, -y_text + 1], 'w', linewidth=0.5)
+        ax.plot([z, z + z_offset], [ys, y_text - 1], fg, linewidth=0.5)
+        ax.plot([z, z + z_offset], [-ys, -y_text + 1], fg, linewidth=0.5)
         ax.text(z + z_offset, y_text, v_str, fontsize=8, ha='center', va='bottom', rotation=90)
         ax.text(z + z_offset, -y_text, z_str, fontsize=8, ha='center', va='top', rotation=90)
         z_prev = z
@@ -95,7 +102,7 @@ def rays(
     sensor_hits = sim.collect_punctures(rays, rpa.depth, get_coords=True)
     weights = ray_rates[sensor_hits[:, 2].astype(int)]  / np.sum(ray_rates)
 
-    ax.scatter(sensor_hits[:, 0], sensor_hits[:, 1], s=weights * 1e4, color='w', alpha=0.7)
+    ax.scatter(sensor_hits[:, 0], sensor_hits[:, 1], s=weights * 1e4, color=fg, alpha=0.7)
     ax.plot([-xs, xs, xs, -xs, -xs], [-ys, -ys, ys, ys, -ys], color='y', linewidth=5) # sensor
     if rpa.aperture_shape == 'square':
         ax.plot([-xa, xa, xa, -xa, -xa], [-ya, -ya, ya, ya, -ya], color='r', linewidth=5, alpha=0.5) # aperture
@@ -105,7 +112,7 @@ def rays(
         ax.plot(circle_x, circle_y, color='r', linewidth=5, alpha=0.5) # aperture
     if rpa.is_ivm:
         off = 1.1
-        ax.text( xs * off,  ys * off, 'I', color='w', size=15, ha='center', va='center')
+        ax.text( xs * off,  ys * off, 'I', color=fg, size=15, ha='center', va='center')
         ax.text(-xs * off,  ys * off, 'II', color='r', size=15, ha='center', va='center')
         ax.text(-xs * off, -ys * off, 'III', color='m', size=15, ha='center', va='center')
         ax.text( xs * off, -ys * off, 'IV', color='g', size=15, ha='center', va='center')
@@ -128,7 +135,7 @@ def rays(
     if do_electrons:
         max_current_density /= -plasma.Z
 
-    ax.plot(current_density, bin_centers, color='w')
+    ax.plot(current_density, bin_centers, color=fg)
 
     ax.set_xlabel('Current (nA / mm)')
     ax.set_ylabel(f'y (mm)')
@@ -145,7 +152,7 @@ def rays(
     assert(isinstance(ax, Axes))
     bin_centers, current_density = hits_histogram(sensor_hits, plasma, ray_rates, 0, do_electrons=do_electrons)
 
-    ax.plot(bin_centers, current_density, color='w')
+    ax.plot(bin_centers, current_density, color=fg)
 
     ax.set_xlabel('x (mm)')
     ax.set_ylabel('Current (nA / mm)')
@@ -171,12 +178,12 @@ def rays(
     # voltage_centers = (rpa.iv_curve[:-1, 0] + rpa.iv_curve[1:, 0]) / 2
 
     if rpa.is_ivm:
-        ax.plot(rpa.iv_curve[:, 0], rpa.iv_curve[:, 1], color='w', linewidth=3)
+        ax.plot(rpa.iv_curve[:, 0], rpa.iv_curve[:, 1], color=fg, linewidth=3)
         ax.plot(rpa.iv_curve[:, 0], rpa.iv_curve[:, 2], color='r', linewidth=3)
         ax.plot(rpa.iv_curve[:, 0], rpa.iv_curve[:, 3], color='m', linewidth=3)
         ax.plot(rpa.iv_curve[:, 0], rpa.iv_curve[:, 4], color='g', linewidth=3)
     else:
-        ax.plot(rpa.iv_curve[:, 0], rpa.iv_curve[:, 1], color='w', linewidth=3)
+        ax.plot(rpa.iv_curve[:, 0], rpa.iv_curve[:, 1], color=fg, linewidth=3)
     # ax.plot(voltage_centers, -dIdV, color='b', linewidth=3)
 
     ax.set_xlim(min(sweep), max(sweep))
@@ -253,7 +260,7 @@ def rays_3d(
     ax = fig.add_subplot(111, projection='3d')
 
     for ray in rays:
-        ax.plot(ray[:, 2], ray[:, 0], ray[:, 1], color='k', alpha=0.9, linewidth=0.1)
+        ax.plot(ray[:, 2], ray[:, 0], ray[:, 1], color=bg, alpha=0.9, linewidth=0.1)
     
     lim = 20
     ax.set_xlim(-lim, lim)

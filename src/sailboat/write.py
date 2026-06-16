@@ -99,7 +99,7 @@ def eq_config(
 def pbs(
         sim_direc: Path,
         queue: str = 'normalq',
-        num_nodes: int = 2,
+        num_nodes: int = 1,
         num_procs_per_node: int = 192,
         num_hours: float = 24,
         email: str = '',

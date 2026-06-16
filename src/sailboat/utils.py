@@ -36,6 +36,7 @@ def vega_rsync(
     else: # receive
         cmd += [f'{remote_username}@{remote_host}:{str(vega_path)}', f'{local_path}']
 
+    # print(cmd)
     subprocess.run(cmd, check=True)
 
 
@@ -312,7 +313,7 @@ def check_activity(
             print(f'Value of f107a in config.nml is {cfg[v]}, but is {activity[v]} for simulation halftime.')
             all_match = False
     if all_match:
-        print('  Activity levels in config.nml match www-app3.gfz-potsdam.de values.')
+        print('Activity levels in config.nml match www-app3.gfz-potsdam.de values.')
 
 
 def internet_access() -> bool:
@@ -350,7 +351,6 @@ def simulation_finished(
         except:
             return False
     return Path(sim_direc, final_output_filename).is_file()
-        
 
 
 def geog_to_ecef(

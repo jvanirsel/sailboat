@@ -108,17 +108,21 @@ def variable(
         glon_ref: float | None = None,
         glon_res: float = 0.1,
         mlon_ref: float | None = None,
+        plot_only_last: bool = True,
         make_gifs: bool = True,
         do_glon: bool = False
         ) -> None:
     
-    sim_direc = Path(GEMINI_SIM_ROOT, sim_name)
+    sim_direc = Path(GEMINI_SIM_ROOT, sim_name).expanduser()
     plot_direc = Path(sim_direc, 'plots', variable)
     plot_direc.mkdir(parents=True, exist_ok=True)
 
     cfg = read.config(sim_direc)
     xg = read.grid(sim_direc)
     times = cfg['time']
+
+    if plot_only_last:
+        times = [times[-1]]
 
     scl = 10 ** dat_order
     units = su.si_units(variable, dat_order)

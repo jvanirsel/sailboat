@@ -1,5 +1,6 @@
 from sailboat import plot, GEMINI_SIM_ROOT, interpolate, apep, sim, utils, SAILBOAT_ROOT
-from gemini3d import read
+from gemini3d import read, model
+from gemini3d.grid import tilted_dipole
 import h5py
 from datetime import datetime, timedelta
 import numpy as np
@@ -7,10 +8,24 @@ import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter1d
 from pathlib import Path
 import scipy
+import psutil
+import os
 
+for rid in [392, 393, 394]:
+    sim_name = f'apep2_{rid}_hires'
+    sim.copy_from_vega(sim_name)
 
-sim.setup('apep2_392_hires')
+    # sim_direc = Path(GEMINI_SIM_ROOT, sim_name)
+    # cfg = read.config(sim_direc)
+    # xg = read.grid(sim_direc)
+    # dat = read.frame(sim_direc, cfg['time'][-1], 'ne')
+    # ne = np.array(dat['ne'])
+    # plot.variable(sim_name, 'ne')
+    # for c in [1, 2, 3]:
+        # plot.quick_summary(cfg, dat, cfg['time'][-1], c)
+    # sim.setup(sim_name)
 quit()
+
 # # sim_name = 'test'
 # sim_direc = Path(GEMINI_SIM_ROOT, sim_name)
 # cfg = read.config(sim_direc)
@@ -98,18 +113,25 @@ quit()
 # apep.convert_slp_data()
 # quit()
 
-for rid in [392, 393, 394]: #[386, 387, 388]:
+for rid in [386, 387, 388, 392, 393, 394]: #[386, 387, 388]:
     time, _, _, alt = apep.get_trajectory(rid)
     ind = np.argmax(alt)
     t = time[ind]
+
     sod = (t - t.astype('datetime64[D]')).astype(int) / 1e6
 
+    y = t.astype('datetime64[Y]').astype(int) + 1970
+    m = (t.astype('datetime64[M]').astype(int) % 12 + 1)
+    d = (t.astype('datetime64[D]') - t.astype('datetime64[M]').astype('datetime64[D]') + 1).astype(int)
+
     print('-' * 40 + f' {rid} ' + '-' * 40 + '\n.../config.nml:')
+    print(f'{y}, {m:02d}, {d:02d}')
     print(f'UTsec0 = {round(sod)-600-7200}')
     print('tdur = 7200')
     print('dtout = 600')
 
     print('\n..._30s/config.nml:')
+    print(f'{y}, {m:02d}, {d:02d}')
     print(f'UTsec0 = {round(sod)-600}')
     print('tdur = 1200')
     print('dtout = 30\n')

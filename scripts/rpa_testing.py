@@ -1,4 +1,4 @@
-from sailboat import SAILBOAT_ROOT
+from sailboat import SAILBOAT_ROOT, utils
 import sailboat.rpa as srpa
 import time
 import csv
@@ -61,9 +61,18 @@ import h5py
 
 # if __name__ == "__main__":
 
+# cfg_id = 0
+# sffx = ''
+# rpa_direc = SAILBOAT_ROOT / 'data' / 'rpa' / sys.argv[1]
+# rpa_direc = rpa_direc.expanduser()
+# gif_path = rpa_direc / f'config_{cfg_id:02d}{sffx}.gif'
+# plot_direc = rpa_direc / f'plots{sffx}'
+# utils.make_gif(plot_direc, prefix=f'config_{cfg_id:02d}_step_', filename=gif_path)
+# quit()
+
 t0 = time.perf_counter()
-sim_direc = SAILBOAT_ROOT / 'data' / 'rpa' / sys.argv[1]
-srpa.sim.run(sim_direc, do_electrons=False, debug=False)
+rpa_direc = SAILBOAT_ROOT / 'data' / 'rpa' / sys.argv[1]
+srpa.sim.run(rpa_direc, do_electrons=False, debug=False, do_example_plots=True)
 t1 = time.perf_counter()
 print(f'Elapsed time: {t1 - t0:.2f} seconds')
 quit()
