@@ -25,6 +25,7 @@ def config(
     cfg['num_sweeps'] = int(toml_dict['rpa']['sweep_steps'])
     cfg['num_rays'] = int(cfg['num_rays'])
     cfg['max_steps'] = int(cfg['max_steps'])
+    cfg['num_plots'] = int(cfg['num_plots'])
 
     return cfg
 

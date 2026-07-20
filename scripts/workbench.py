@@ -1,6 +1,7 @@
 from sailboat import plot, GEMINI_SIM_ROOT, interpolate, apep, sim, utils, SAILBOAT_ROOT
 from gemini3d import read, model
 from gemini3d.grid import tilted_dipole
+import gemini3d.utils as gutils
 import h5py
 from datetime import datetime, timedelta
 import numpy as np
@@ -8,23 +9,75 @@ import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter1d
 from pathlib import Path
 import scipy
-import psutil
 import os
 
 for rid in [392, 393, 394]:
-    sim_name = f'apep2_{rid}_hires'
-    sim.copy_from_vega(sim_name)
-
-    # sim_direc = Path(GEMINI_SIM_ROOT, sim_name)
-    # cfg = read.config(sim_direc)
-    # xg = read.grid(sim_direc)
-    # dat = read.frame(sim_direc, cfg['time'][-1], 'ne')
-    # ne = np.array(dat['ne'])
-    # plot.variable(sim_name, 'ne')
-    # for c in [1, 2, 3]:
-        # plot.quick_summary(cfg, dat, cfg['time'][-1], c)
-    # sim.setup(sim_name)
+    sim_name = f'apep2_{rid}_unmask_30s'
+    sim_direc = GEMINI_SIM_ROOT / sim_name
+    cfg = read.config(sim_direc)
+    # apep.convert_solar_flux_unmasked(cfg, cfg)
+    sim.setup(sim_name)
 quit()
+
+for rid in [392, 393, 394]:
+    print('\n'  + '@' * 100 +  f'\nrid = {rid} \n'  + '@' * 100 + '\n')
+    name1 = f'apep2_{rid}_hires_30s'
+    name2 = f'apep2_{rid}_unmask_30s'
+    with open(Path(GEMINI_SIM_ROOT, name1, 'config.nml'), 'r') as f:
+        lines1 = f.readlines()
+    with open(Path(GEMINI_SIM_ROOT, name2, 'config.nml'), 'r') as f:
+        lines2 = f.readlines()
+    for line1, line2 in zip(lines1, lines2):
+        print(f'{line1.strip():50s} \t {line2.strip()}')
+quit()
+
+for rid in [386, 387, 388]:
+    for sfx in ['unmask', 'hires']:
+        sim_name = f'apep1_{rid}_{sfx}_30s'
+        sim_direc = Path(GEMINI_SIM_ROOT, sim_name)
+        cfg = read.config(sim_direc)
+        dt = cfg['dtsolflux']
+        t0 = cfg['time'][0]
+        t1 = cfg['time'][-1]
+
+        solfux_times = np.arange(t0, t1 + dt, dt)
+        for t in solfux_times:
+            print(f'{sim_name}: t = {t} / {t1}')
+            stem = gutils.datetime2stem(t)
+            solflux_path = Path(sim_direc, 'inputs', 'solflux', f'{stem}.h5')
+            with h5py.File(solflux_path, 'r') as solflux_data:
+                irr = np.transpose(np.array(solflux_data['Iinf'], dtype=np.float64), (1, 2, 0))
+                print(irr.shape)
+
+                fig, axs = plt.subplots(5, 5, figsize=(16, 12))
+
+                for i in range(irr.shape[2]):
+                    ax = axs[i//5, i%5]
+                    im = ax.pcolormesh(np.log10(irr[:, :, i]), clim=(5, 15), shading='auto')
+                    fig.colorbar(im, ax=ax)
+                fig.show()
+                fig.savefig(solflux_path.parent / f'{stem}.png')
+
+quit()
+
+
+# for rid in [392, 393, 394]:
+#     sim_name = f'apep2_{rid}_hires_30s'
+#     # sim.copy_from_vega(sim_name)
+
+#     sim_direc = Path(GEMINI_SIM_ROOT, sim_name)
+#     cfg = read.config(sim_direc)
+#     # xg = read.grid(sim_direc)
+#     dat = read.frame(sim_direc, cfg['time'][-1])
+#     # ne = np.array(dat['ne'])
+#     # plot.variable(sim_name, 'ne')
+#     times = cfg['time']
+#     for tid, time in enumerate(times):
+#         print(f'rid = {rid}: tid = {tid} / {len(times)-1}')
+#         for c in [1, 2, 3]:
+#             plot.quick_summary(cfg, dat, time, c)
+#     # sim.setup(sim_name)
+# quit()
 
 # # sim_name = 'test'
 # sim_direc = Path(GEMINI_SIM_ROOT, sim_name)
@@ -113,89 +166,98 @@ quit()
 # apep.convert_slp_data()
 # quit()
 
-for rid in [386, 387, 388, 392, 393, 394]: #[386, 387, 388]:
-    time, _, _, alt = apep.get_trajectory(rid)
-    ind = np.argmax(alt)
-    t = time[ind]
+# for rid in [386, 387, 388, 392, 393, 394]: #[386, 387, 388]:
+#     time, _, _, alt = apep.get_trajectory(rid)
+#     ind = np.argmax(alt)
+#     t = time[ind]
 
-    sod = (t - t.astype('datetime64[D]')).astype(int) / 1e6
+#     sod = (t - t.astype('datetime64[D]')).astype(int) / 1e6
 
-    y = t.astype('datetime64[Y]').astype(int) + 1970
-    m = (t.astype('datetime64[M]').astype(int) % 12 + 1)
-    d = (t.astype('datetime64[D]') - t.astype('datetime64[M]').astype('datetime64[D]') + 1).astype(int)
+#     y = t.astype('datetime64[Y]').astype(int) + 1970
+#     m = (t.astype('datetime64[M]').astype(int) % 12 + 1)
+#     d = (t.astype('datetime64[D]') - t.astype('datetime64[M]').astype('datetime64[D]') + 1).astype(int)
 
-    print('-' * 40 + f' {rid} ' + '-' * 40 + '\n.../config.nml:')
-    print(f'{y}, {m:02d}, {d:02d}')
-    print(f'UTsec0 = {round(sod)-600-7200}')
-    print('tdur = 7200')
-    print('dtout = 600')
+#     print('-' * 40 + f' {rid} ' + '-' * 40 + '\n.../config.nml:')
+#     print(f'{y}, {m:02d}, {d:02d}')
+#     print(f'UTsec0 = {round(sod)-600-7200}')
+#     print('tdur = 7200')
+#     print('dtout = 600')
 
-    print('\n..._30s/config.nml:')
-    print(f'{y}, {m:02d}, {d:02d}')
-    print(f'UTsec0 = {round(sod)-600}')
-    print('tdur = 1200')
-    print('dtout = 30\n')
-quit()
+#     print('\n..._30s/config.nml:')
+#     print(f'{y}, {m:02d}, {d:02d}')
+#     print(f'UTsec0 = {round(sod)-600}')
+#     print('tdur = 1200')
+#     print('dtout = 30\n')
+# quit()
 
 # sim_name = 'apep_2023_veia10_30s'
 # sim_direc = path.join(GEMINI_SIM_ROOT, sim_name)
 # cfg = read.config(sim_direc)
 # eq_direc = cfg['eq_dir']
 
-fig, axs = plt.subplots(1, 2, figsize=(12, 12))
+# [386, 387, 388, 392, 393, 394]
+
 sim_name = ''
-for rid in [386, 387, 388]:
-    v = (rid - 386) / 2
-    clr = (v, 0, 0)
+for rid0 in [386]: #, 392:
+    fig, axs = plt.subplots(1, 2, figsize=(18, 12))
+    apepid = 1 if rid0 < 390 else 2            
 
-    # get sweeping Langmuir probe data
-    _, slp_gdalt, slp_density, slp_electron_temp = apep.get_slp_data(rid)
-    slp_density = gaussian_filter1d(slp_density, len(slp_density) // 100)
-    slp_electron_temp = gaussian_filter1d(slp_electron_temp, len(slp_electron_temp) // 100)
+    for id in range(3):
+        clr = 'red' if id == 0 else 'green' if id == 1 else 'blue'
+        rid = rid0 + id
 
-    # get simulation interpolated data
-    # sim_name = f'apep1_{rid}_evibcool1_30s'
-    # sim_name = f'apep1_{rid}_veia20_30s'
-    sim_name = f'apep1_{rid}_hires_30s'
-    # sim_name = f'apep1_{rid}_autoirr_30s'
-    # sim_name = f'apep1_{rid}_unmask_30s'
-    sim_direc = Path(GEMINI_SIM_ROOT, sim_name)
-    sim_data = apep.interpolate_trajectory(sim_direc, rid)
-    _, _, _, sim_gdalt = apep.get_trajectory(rid)
-    
-    apogee_id = np.argmax(sim_gdalt)
-    sim_gdalt = sim_gdalt[apogee_id:]
-    sim_density = sim_data[apogee_id:, 0]
-    sim_electron_temp = sim_data[apogee_id:, 1]
+        # get sweeping Langmuir probe data
+        _, slp_gdalt, slp_density, slp_electron_temp = apep.get_slp_data(rid)
+        slp_density = gaussian_filter1d(slp_density, len(slp_density) // 100)
+        slp_electron_temp = gaussian_filter1d(slp_electron_temp, len(slp_electron_temp) // 100)
 
-    # print(f'\nrid: {rid}')
-    # for ds in [sim_density, slp_density, sim_electron_temp, slp_electron_temp]:
-    #     print(np.min(ds), np.max(ds), ds.shape)
-    
-    ax = axs[0]
-    ax.plot(np.log10(sim_density), sim_gdalt / 1e3, label=f'36.{rid} (gemini)', color=clr, linestyle='--')
-    ax.plot(np.log10(slp_density), slp_gdalt / 1e3, label=f'36.{rid} (slp)', color=clr)
-    ax.set_xlim(9.9, 12.5)
-    ax.set_ylim([70, 360])
-    ax.legend()
-    ax.set_xlabel('log10 Density [m-3]')
-    ax.set_ylabel('Altitude [km]')
-    ax.grid()
-    
-    ax = axs[1]
-    ax.plot(sim_electron_temp, sim_gdalt / 1e3, label=f'36.{rid} (gemini)', color=clr, linestyle='--')
-    ax.plot(slp_electron_temp, slp_gdalt / 1e3, label=f'36.{rid} (slp)', color=clr)
-    ax.set_xlim([200, 2300])
-    ax.set_ylim([70, 360])
-    ax.legend()
-    ax.set_xlabel('Electron temperature [K]')
-    ax.set_ylabel('Altitude [km]')
-    ax.grid()
-    
-    fig.suptitle(f'APEP 1 Simulation interpolations (apep1_###_{sim_name[10:]})')
-    fig.show()
+        # get simulation interpolated data
+        sim_name = f'apep{apepid}_{rid}_unmask_30s'
+        sim_direc = Path(GEMINI_SIM_ROOT, sim_name)
+        sim_data_unmasked = apep.interpolate_trajectory(sim_direc, rid)
+        sim_name = f'apep{apepid}_{rid}_hires_30s'
+        sim_direc = Path(GEMINI_SIM_ROOT, sim_name)
+        sim_data = apep.interpolate_trajectory(sim_direc, rid)
+        _, _, _, sim_gdalt = apep.get_trajectory(rid)
+        
+        apogee_id = np.argmax(sim_gdalt)
+        sim_gdalt = sim_gdalt[apogee_id:]
+        sim_density = sim_data['electron_density'][apogee_id:]
+        sim_electron_temp = sim_data['electron_temperature'][apogee_id:]
+        sim_density_unmasked = sim_data_unmasked['electron_density'][apogee_id:]
+        sim_electron_temp_unmasked = sim_data_unmasked['electron_temperature'][apogee_id:]
 
-plot_path = f'../../plots/apep1_sim_interpolations_{sim_name[10:]}.png'
-print(f'Saving {plot_path}')
-fig.savefig(plot_path)
-plt.close(fig)
+        apogee_id = np.argmax(slp_gdalt)
+        slp_gdalt = slp_gdalt[apogee_id:]
+        slp_density = slp_density[apogee_id:]
+        slp_electron_temp = slp_electron_temp[apogee_id:]
+        
+        ax = axs[0]
+        ax.plot(np.log10(sim_density), sim_gdalt / 1e3, label=f'36.{rid} (gemini)', color=clr, linestyle='--')
+        ax.plot(np.log10(sim_density_unmasked), sim_gdalt / 1e3, label=f'36.{rid} (gemini null)', color=clr, linestyle=':')
+        ax.plot(np.log10(slp_density), slp_gdalt / 1e3, label=f'36.{rid} (slp)', color=clr)
+        ax.set_xlim(9.9, 12.5)
+        ax.set_ylim([70, 360])
+        ax.legend()
+        ax.set_xlabel(r'$\log_{10}$ Density (m$^{-3}$)')
+        ax.set_ylabel('Altitude (km)')
+        ax.grid()
+        
+        ax = axs[1]
+        ax.plot(sim_electron_temp, sim_gdalt / 1e3, label=f'36.{rid} (gemini)', color=clr, linestyle='--')
+        ax.plot(sim_electron_temp_unmasked, sim_gdalt / 1e3, label=f'36.{rid} (gemini null)', color=clr, linestyle=':')
+        ax.plot(slp_electron_temp, slp_gdalt / 1e3, label=f'36.{rid} (slp)', color=clr)
+        ax.set_xlim([200, 2300])
+        ax.set_ylim([70, 360])
+        ax.legend()
+        ax.set_xlabel('Electron temperature (K)')
+        ax.set_ylabel('Altitude (km)')
+        ax.grid()
+        
+        fig.suptitle(f'APEP {apepid} Simulation interpolations (apep{apepid}_###_{sim_name[10:]})')
+        fig.show()
+
+    plot_path = f'../plots/apep{apepid}_sim_interpolations_{sim_name[10:]}.png'
+    print(f'Saving {plot_path}')
+    fig.savefig(plot_path)
+    plt.close(fig)

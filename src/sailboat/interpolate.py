@@ -14,7 +14,7 @@ def trajectory(
         traj_gdlats: np.ndarray,
         traj_gdalts: np.ndarray,
         variables: set[str]
-        ) -> np.ndarray:
+        ) -> dict[str, np.ndarray]:
     
     cfg = read.config(sim_direc)
     xg = read.grid(sim_direc, var={'x1', 'x2', 'x3'})
@@ -33,7 +33,7 @@ def trajectory(
     tid0_old = None
     dat0_old = xr.Dataset()
     dat1_old = xr.Dataset()
-    dat_out = np.empty((len(traj_times), len(variables)))
+    dat_out = {var: np.empty(len(traj_times)) for var in variables}
     for did, (traj_time, traj_gdlon, traj_gdlat, traj_gdalt) in enumerate(
         zip(traj_times, traj_gdlons, traj_gdlats, traj_gdalts)):
 
@@ -58,15 +58,7 @@ def trajectory(
         else:
             tid0 = tid - 1
             tid1 = tid
-
-        # tid0 = max(tid - 1, 0)
-        # tid1 = min(tid, len(sim_times) - 1)
-
-        # # if the nearest is earlier, flip order
-        # if sim_times[tid] < traj_time:
-        #     tid0 = tid
-        #     tid1 = min(tid + 1, len(sim_times) - 1)
-
+        
         # read new data only if tid has shifted
         time0: np.datetime64 = sim_times[tid0]
         time1: np.datetime64 = sim_times[tid1]
@@ -81,9 +73,9 @@ def trajectory(
             dat1 = dat1_old
         tid0_old = tid0
 
-        for vid, variable in enumerate(variables):
-            d0 = dat0[var_dict[variable]]
-            d1 = dat1[var_dict[variable]]
+        for var in variables:
+            d0 = dat0[var_dict[var]]
+            d1 = dat1[var_dict[var]]
 
             interp0 = RegularGridInterpolator((sim_qs, sim_ps, sim_phis), d0,
                                             method='linear', bounds_error=False, fill_value=np.nan)
@@ -92,8 +84,8 @@ def trajectory(
             
             dat0_interp = interp0([traj_q, traj_p, traj_phi])
             dat1_interp = interp1([traj_q, traj_p, traj_phi])
-            dat_out[did, vid] = dat0_interp + (dat1_interp - dat0_interp) * (traj_time - time0) / (time1 - time0)
-                
+            dat_out[var][did] = dat0_interp + (dat1_interp - dat0_interp) * (traj_time - time0) / (time1 - time0)
+
     print('Done interpolating simulation data...' + ' ' * 40)
 
     return dat_out

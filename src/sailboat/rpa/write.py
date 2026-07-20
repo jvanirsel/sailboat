@@ -22,8 +22,8 @@ def config_data(
 
         group = '/rpa/geometry/'
         h5ds(h5f, group + 'aperture_shape', rpa.aperture_shape, str, 'Aperture shape', 'n/a')
-        h5ds(h5f, group + 'source_size', rpa.source_size, np.float64, 'Plasma source size', 'millimeter')
         h5ds(h5f, group + 'aperture_size', rpa.aperture_size, np.float64, 'Aperture side length', 'millimeter')
+        h5ds(h5f, group + 'aperture_area', rpa.aperture_area, np.float64, 'Aperture area', 'millimeter^2')
         h5ds(h5f, group + 'sensor_size', rpa.sensor_size, np.float64, 'Sensor side length', 'millimeter')
         h5ds(h5f, group + 'depth', rpa.depth, np.float64, 'Distance from aperture to sensor', 'millimeter')
 
@@ -45,7 +45,7 @@ def config_data(
         h5ds(h5f, group + 'ionization_state', plasma.Z, np.int64, 'Ionization state of ions', 'elementary charge')
         h5ds(h5f, group + 'beam/velocity', plasma.V, np.float64, 'Plasma beam velocity (ux, uy, uz)', 'millimeter microsecond^-1')
         h5ds(h5f, group + 'beam/energy', plasma.K, np.float64, 'Plasma beam kinetic energy', 'electronvolt')
-        h5ds(h5f, group + 'debye_length', plasma.lambdaD, np.float64, 'Total plasma Debye length', 'millimeters')
+        h5ds(h5f, group + 'debye_length', plasma.lambdaD, np.float64, 'Total plasma Debye length', 'millimeter')
         h5ds(h5f, group + 'magnetic_field', plasma.B, np.float64, 'Background magnetic field (Bx, By, Bz)', 'microtesla')
 
         group = '/plasma/background/'
@@ -65,8 +65,8 @@ def rays(
     with h5py.File(save_path, 'a') as h5f:
 
         group = f'/rays/step_{sweep_id:03d}/'
-        rays_saved = rays[::len(rays) // num_saved_rays, :, :]
-        ray_rates_saved = ray_rates[::len(rays) // num_saved_rays]
+        rays_saved = rays[::max(len(rays) // num_saved_rays, 1), :, :]
+        ray_rates_saved = ray_rates[::max(len(rays) // num_saved_rays, 1)]
         h5ds(h5f, group + 'rays', rays_saved, np.float16, 'Sample of particle positions (num_rays x max_steps x 3)', 'millimeter')
         h5ds(h5f, group + 'ray_rates', ray_rates_saved, np.float64, 'Particle rate per ray', 'microsecond^-1')
 
@@ -80,7 +80,11 @@ def iv_curve(
 
         group = f'/iv_curve/'
         h5ds(h5f, group + 'voltages', rpa.iv_curve[:, 0], np.float64, 'Sweeping bias voltages', 'volt')
-        h5ds(h5f, group + 'currents', rpa.iv_curve[:, 1], np.float64, 'Anode currents', 'nanoamperes')
+        if rpa.is_ivm:
+            h5ds(h5f, group + 'currents', rpa.iv_curve[:, 1:], np.float64, 'Anode currents', 'nanoampere')
+        else:
+            h5ds(h5f, group + 'currents', rpa.iv_curve[:, 1], np.float64, 'Anode currents', 'nanoampere')
+ 
 
 def all_currents(
         save_path: Path,
@@ -90,20 +94,47 @@ def all_currents(
     with h5py.File(save_path, 'a') as h5f:
 
         group = f'/currents/'
-        h5ds(h5f, group + 'aperture', currents[:, 0], np.float64, 'Aperture currents', 'nanoamperes')
-        h5ds(h5f, group + 'bias', currents[:, 0], np.float64, 'Bias currents', 'nanoamperes')
-        h5ds(h5f, group + 'anode', currents[:, 0], np.float64, 'Anode currents', 'nanoamperes')
+        h5ds(h5f, group + 'aperture', currents[:, 0], np.float64, 'Aperture currents', 'nanoampere')
+        h5ds(h5f, group + 'bias', currents[:, 0], np.float64, 'Bias currents', 'nanoampere')
+        h5ds(h5f, group + 'anode', currents[:, 0], np.float64, 'Anode currents', 'nanoampere')
 
+
+def measured_parameters(
+        save_path: Path,
+        pars: dict[str, tuple[float, float, float, float]],
+        fit_info: dict[str, float | np.ndarray],
+        ) -> None:
+    
+    with h5py.File(save_path, 'w') as h5f:
+        group = '/parameters/'
+        h5ds(h5f, group + 'legend', (0, 1, 2, 3), np.int16, '(Value, Uncertainty (2\u03c3), Absolute error, Relative error (%))', 'index')
+        h5ds(h5f, group + 'density/fit', pars['N1'], np.float64, 'Fit density', 'millimeter^-3')
+        h5ds(h5f, group + 'density/saturation', pars['N2'], np.float64, 'Saturation density', 'millimeter^-3')
+        h5ds(h5f, group + 'velocity/x', pars['U1'], np.float64, 'Beam velocity, x component', 'millimeter microsecond^-1')
+        h5ds(h5f, group + 'velocity/y', pars['U2'], np.float64, 'Beam velocity, y component', 'millimeter microsecond^-1')
+        h5ds(h5f, group + 'velocity/z', pars['U3'], np.float64, 'Beam velocity, z component', 'millimeter microsecond^-1')
+        h5ds(h5f, group + 'temperature', pars['T'], np.float64, 'Ion temperature', 'electronvolt')
+
+        group = '/fit_information/'
+        h5ds(h5f, group + 'r_squared', fit_info['r2'], np.float64, 'Coefficient of determination', 'n/a')
+        h5ds(h5f, group + 'chi_squared/regular', fit_info['chi2'], np.float64, 'Chi-squared statistic', 'n/a')
+        h5ds(h5f, group + 'chi_squared/reduced', fit_info['red_chi2'], np.float64, 'Reduced chi-squared statistic', 'n/a')
+        h5ds(h5f, group + 'degrees_of_freedom', fit_info['dof'], np.int64, 'Sweep points - 3', 'n/a')
+        h5ds(h5f, group + 'covariance', fit_info['cov'], np.float64, 'Covariance matrix', 'n/a')
+        
 
 def h5ds(
         h5f: h5py.File,
         name: str,
-        data: float | tuple[float, ...] | np.ndarray,
+        data: float | tuple[float, ...] | np.ndarray | str,
         dtype: np.dtype | type,
         description: str,
         units: str
-        ):
+        ) -> None:
+    
+    if dtype is str:
+        dtype = h5py.string_dtype(encoding='utf-8')
 
-        ds = h5f.create_dataset(name, data=data, dtype=dtype)
-        ds.attrs['description'] = description
-        ds.attrs['units'] = units
+    ds = h5f.create_dataset(name, data=data, dtype=dtype)
+    ds.attrs['description'] = description
+    ds.attrs['units'] = units

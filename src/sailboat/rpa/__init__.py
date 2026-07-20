@@ -82,15 +82,15 @@ class RPAGeometry:
             aperture_shape: str
             ):
         
-        source_size = sensor_size + 2 * aperture_size
-        source_area = source_size**2
+        # source_size = sensor_size + 2 * aperture_size
+        # source_area = source_size**2
         aperture_area = aperture_size**2 if aperture_shape == 'square' else np.pi * (aperture_size / 2)**2
         sensor_area = sensor_size**2
 
-        self.source_size = source_size
+        # self.source_size = source_size
         self.aperture_size = aperture_size
         self.sensor_size = sensor_size
-        self.source_area = source_area
+        # self.source_area = source_area
         self.aperture_area = aperture_area
         self.sensor_area = sensor_area
         self.aperture_shape = aperture_shape
@@ -108,10 +108,10 @@ class RPA:
             raise ValueError('screens list must not be empty')
 
         self.screens = sorted(screens, key=lambda s: s.location)
-        self.source_size = geometry.source_size
+        # self.source_size = geometry.source_size
         self.aperture_size = geometry.aperture_size
         self.sensor_size = geometry.sensor_size
-        self.source_area = geometry.source_area
+        # self.source_area = geometry.source_area
         self.aperture_area = geometry.aperture_area
         self.sensor_area = geometry.sensor_area
         self.aperture_shape = geometry.aperture_shape

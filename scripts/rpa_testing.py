@@ -1,11 +1,18 @@
 from sailboat import SAILBOAT_ROOT, utils
 import sailboat.rpa as srpa
+from sailboat.rpa import measure
 import time
 import csv
 import matplotlib.pyplot as plt
 import numpy as np
 import sys
 import h5py
+
+# rpa_direc = SAILBOAT_ROOT / 'data' / 'rpa' / sys.argv[1]
+# with h5py.File(rpa_direc / 'measured_09_data.h5') as h5f:
+#     grp = h5f['parameters']
+#     print(grp['density/fit'][:])
+# quit()
 
 # log = SAILBOAT_ROOT / '..' / '..' / 'log.log'
 # with open(log) as f:
@@ -72,9 +79,10 @@ import h5py
 
 t0 = time.perf_counter()
 rpa_direc = SAILBOAT_ROOT / 'data' / 'rpa' / sys.argv[1]
-srpa.sim.run(rpa_direc, do_electrons=False, debug=False, do_example_plots=True)
+# srpa.sim.run(rpa_direc, do_electrons=False, debug=True, do_example_plots=False, go_fast=True)
+measure.plasma_parameters(rpa_direc / 'config_09_data.h5')
 t1 = time.perf_counter()
-print(f'Elapsed time: {t1 - t0:.2f} seconds')
+print(f'Elapsed time: {(t1 - t0) / 60:.2f} minutes')
 quit()
 
 # t0 = time.perf_counter()

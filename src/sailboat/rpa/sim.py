@@ -9,7 +9,8 @@ def run(
         save: bool = True,
         do_electrons: bool = False,
         debug: bool = False,
-        do_example_plots: bool = False
+        do_example_plots: bool = False,
+        go_fast: bool = True,
         ) -> None:
 
     from . import read, plot, sim, write
@@ -27,6 +28,7 @@ def run(
     plot_direc = rpa_direc / f'plots{sffx}'
     h5_path = rpa_direc / f'config_{cfg_id:02d}_data{sffx}.h5'
     num_sweep_ids = cfg['num_sweeps']
+    num_plots = cfg['num_plots']
 
     if do_example_plots:
         save = False
@@ -51,23 +53,35 @@ def run(
 
     # print(f'Debye length: {plasma.lambdaD:.2f} mm')
     currents = np.full((num_sweep_ids, 3), np.nan)
-    ammeter_locations = [0.0, rpa.screens[rpa.sweep_screen_id].location, rpa.depth] # aperture, bias, and anode
+    # ammeter_locations = [0.0, rpa.screens[rpa.sweep_screen_id].location, rpa.depth] # aperture, bias, and anode
+    ammeter_locations = [0.0, rpa.depth - 2, rpa.depth]
 
+    rays = np.array([])
+    avg_time_per_step = 0.0
     for sweep_id in range(num_sweep_ids):
         print('\n' + f' Sweep id: {sweep_id} / {num_sweep_ids - 1} '.center(80, '-'))
 
         t0 = time.perf_counter()
-        rays, ray_rates = sim.rays(
-            num_rays = cfg['num_rays'],
-            max_steps = cfg['max_steps'],
-            rpa = rpa,
-            plasma = plasma,
-            dt_factor = cfg['dt_factor'],
-            dx_max = cfg['dx_max'],
-            do_electrons = do_electrons
-        )
-        t1 = time.perf_counter()
-        print(f'Ray calculation time: {t1-t0:.2f} seconds')
+        if go_fast:
+            rays, ray_rates = sim.fast_rays(
+                num_rays = cfg['num_rays'],
+                max_steps = cfg['max_steps'],
+                rpa = rpa,
+                plasma = plasma,
+                dt_factor = cfg['dt_factor'],
+                dx_max = cfg['dx_max'],
+                do_electrons = do_electrons
+            )
+        else:
+            rays, ray_rates = sim.rays(
+                num_rays = cfg['num_rays'],
+                max_steps = cfg['max_steps'],
+                rpa = rpa,
+                plasma = plasma,
+                dt_factor = cfg['dt_factor'],
+                dx_max = cfg['dx_max'],
+                do_electrons = do_electrons
+            )
 
         if save:
             write.rays(h5_path, rays, ray_rates, sweep_id)
@@ -84,12 +98,27 @@ def run(
             rpa.update_iv_curve(currents_now[-1])
 
         png_path = plot_direc / f'config_{cfg_id:02d}_step_{sweep_id:03d}{sffx}.png'
-        print('Plotting rays '.ljust(75, '.'), end='\r')
-        plot.rays(png_path, rays, ray_rates, currents_now, rpa, plasma, do_electrons=do_electrons, debug=debug, is_example_plot=do_example_plots)
-        print('Plotting rays '.ljust(75, '.') + ' done')
+        plot_ids = np.linspace(0, num_sweep_ids-1, num_plots).astype(int)
+        if sweep_id in plot_ids:
+            print('Plotting rays '.ljust(75, '.'), end='\r')
+            plot.rays(png_path, rays, ray_rates, currents_now, rpa, plasma, \
+                      do_electrons=do_electrons, debug=debug, is_example_plot=do_example_plots)
+            print('Plotting rays '.ljust(75, '.') + ' done')
 
         rpa.step_sweep()
-    
+
+        # estimate time remaining
+        dt = time.perf_counter() - t0
+        if sweep_id == 0:
+            avg_time_per_step = dt
+        else:
+            avg_time_per_step += sweep_id * dt
+            avg_time_per_step /= sweep_id + 1
+        time_left = max(0.0, (num_sweep_ids - sweep_id + 1) * avg_time_per_step)
+        print(f'Ray calculation time: {dt:.2f} seconds')
+        print(f'Average time per step: {avg_time_per_step:.2f} seconds')
+        print(f'Estimate time remaining: {time_left / 60:.2f} minutes')
+
     del rays
 
     if save:
@@ -113,7 +142,7 @@ def rays(
     '''
     Generate a collection of plasma ion ray traces, each evolving through RPA defined forces.
     Rays will terminate once outside of a predetermined volume.
-    Also generates the particle rates of each ray for later current calculations.
+    Generates the particle rates of each ray for later current calculations.
     
     :param num_rays: Number of rays to simulate
     :type num_rays: int
@@ -136,11 +165,12 @@ def rays(
     y_range_sensor = (-rpa.sensor_size / 2, rpa.sensor_size / 2)
     x_range_aperture = (-rpa.aperture_size / 2, rpa.aperture_size / 2)
     y_range_aperture = (-rpa.aperture_size / 2, rpa.aperture_size / 2)
-    x_range_source = (-rpa.source_size / 2, rpa.source_size / 2)
-    y_range_source = (-rpa.source_size / 2, rpa.source_size / 2)
-    z_range_source = (-rpa.depth, -rpa.depth)
+    x_range_source, y_range_source, z_range_source, source_area = source_geometry(rpa, plasma)
+    # x_range_source = (-rpa.source_size / 2, rpa.source_size / 2)
+    # y_range_source = (-rpa.source_size / 2, rpa.source_size / 2)
+    # z_range_source = (-rpa.depth, -rpa.depth)
 
-    linear_aperture_particle_density = (plasma.N[0] + plasma.N[1]) * rpa.source_area / num_rays # particles / millimeter
+    linear_aperture_particle_density = (plasma.N[0] + plasma.N[1]) * source_area / num_rays # particles / millimeter
 
     print(f'Allocating {(num_rays * max_steps * 3 * 8)/(1024**3):.2f} GB ray matrix '.ljust(75, '.'), end='\r')
     rays = np.full((num_rays, max_steps, 3), np.nan, dtype=float)
@@ -213,8 +243,221 @@ def rays(
     
     print()
     print(f'Average number of steps: {sid_avg / num_rays:.2f}')
-    print(f'Early terminations: {100 * early_terminations / num_rays:.2f} %')
+    print(f'Early terminations: {100 * early_terminations / num_rays:.4f} %')
     return rays, ray_rates
+
+
+def fast_rays(
+        num_rays: int,
+        max_steps: int,
+        rpa: RPA,
+        plasma: Plasma,
+        dt_factor: float,
+        dx_max: float,
+        do_electrons: bool = False,
+        eps: float = 1e-6,
+        ) -> tuple[np.ndarray, np.ndarray]:
+
+
+    x_range_source, y_range_source, z_range_source, source_area = source_geometry(rpa, plasma)
+    linear_aperture_particle_density = (plasma.N[0] + plasma.N[1]) * source_area / num_rays # particles / millimeter
+
+    print(f'Allocating {(num_rays * max_steps * 3 * 8)/(1024**3):.2f} GB ray matrix '.ljust(75, '.'), end='\r')
+    rays = np.full((num_rays, max_steps, 3), np.nan, dtype=float)
+    print(f'Allocating {(num_rays * max_steps * 3 * 8)/(1024**3):.2f} GB ray matrix '.ljust(75, '.') + ' Done')
+    ray_rates = np.full(num_rays, np.nan)
+    
+    # get z values of screen locations
+    screen_locations = rpa.get_locations()
+    screen_locations = np.insert(screen_locations, 0, -2.0 * rpa.depth)
+    screen_voltages = rpa.get_voltages()
+    screen_voltages = np.insert(screen_voltages, 0, 0.0)
+    num_screens = len(screen_locations)
+
+    if do_electrons:
+        specific_charge = -1 / plasma.Me # volt^-1 microsecond^-2 millimeter^2
+    else:
+        specific_charge = plasma.Z / plasma.Mi # volt^-1 microsecond^-2 millimeter^2
+    Ez = np.array([(screen_voltages[i+1] - screen_voltages[i]) / (screen_locations[i+1] - screen_locations[i]) for i in range(num_screens-1)])
+    azs = -specific_charge * Ez
+
+    early_terminations: int = 0
+    for rid in range(num_rays):
+        # print(f'\nrid = {rid}')
+        if rid % (num_rays // 80) == 0 or rid == num_rays - 1:
+            utils.load_bar(rid, num_rays-1, 'Generating rays')
+
+        # each ray starts at t=0, an imaginary screen prior to first screen, and a sample phasespace coordinate
+        tid: int = 0
+        screen_id: int = 0
+        x0, y0, z0, vx0, vy0, vz0 = initial_phase(
+            x_range_source,
+            y_range_source,
+            z_range_source,
+            plasma,
+            rpa,
+            do_electrons=do_electrons
+            )
+
+        # particles flowing along this ray normal to the screens
+        ray_rates[rid] = linear_aperture_particle_density * vz0 # particles / microsecond
+
+        # iter through screens regions
+        while True:
+            # print(f'screen_id = {screen_id}')
+            # assume only along-axis acceleration
+            z_prev_screen = screen_locations[screen_id]
+            z_next_screen = screen_locations[screen_id + 1]
+            # Ez = -1.0 * (screen_voltages[screen_id + 1] - screen_voltages[screen_id]) / (z_next_screen - z_prev_screen)
+            # az = specific_charge * Ez
+            num_tids = round((z_next_screen - z_prev_screen) / rpa.depth / dt_factor)
+
+            az = azs[screen_id]
+            kinetic_energy = vz0**2 / 2
+            work_to_prev = az * (z0 - z_prev_screen)
+            work_to_next = az * (z0 - z_next_screen)
+
+            direction = 1.0
+            if az == 0.0:
+                if vz0 == 0.0:
+                    dt = 0.0
+                elif vz0 > 0.0:
+                    dt = (z_next_screen - z0) / vz0
+                else:
+                    dt = (z_prev_screen - z0) / vz0
+                    direction = -1.0
+            else:
+                # acc toward next screen and not kinetic energy toward prev screen to reach it or
+                # acc toward prev screen but kinetic energy toward next is enough to reach it
+                if (az > 0.0 and vz0 > -np.sqrt(2 * work_to_prev)) or (az < 0.0 and vz0 >= np.sqrt(2 * work_to_next)):
+                    work = work_to_next
+                # neither of those conditions
+                else:
+                    work = work_to_prev
+                    direction = -1.0
+
+                dt = (direction * np.sqrt(2.0 * (kinetic_energy - work)) - vz0) / az
+
+            assert dt >= 0.0, f'Attemping to travel backwards in time: dt = {dt}'
+
+            hit_max_steps = False
+            for t in np.linspace(0.0, dt, num_tids):
+                x = x0 + vx0 * t
+                y = y0 + vy0 * t
+                z = z0 + vz0 * t + az * t**2 / 2
+
+                # passing through next or previous screen
+                if z > z_next_screen + eps or z < z_prev_screen - eps:
+                    break
+
+                if in_bounds((x, y, z), rpa, dx_max):
+                    rays[rid, tid, :] = [x, y, z]
+                    tid += 1
+                else:
+                    break
+                
+                if tid >= max_steps:
+                    hit_max_steps = True
+                    break
+
+            # set new initial conditions for start of upcoming screen
+            x0, y0, _ = rays[rid, tid-1, :]
+            vz0 += az * dt
+            if direction > 0: # particle on next screen
+                z0 = z_next_screen + eps
+                screen_id += 1
+            else: # particle on prev screen
+                z0 = z_prev_screen - eps
+                screen_id -= 1
+            rays[rid, tid-1, 2] = z0
+            
+            # check if new position in bounds
+            if not in_bounds((x0, y0, z0), rpa, dx_max):
+                break
+            
+            if hit_max_steps:
+                early_terminations += 1
+                break
+
+            # at outer screen
+            if screen_id < 0 or screen_id >= num_screens-1:
+                break
+
+    print(f'Early terminations: {100 * early_terminations / num_rays:.4f} %')
+    return rays, ray_rates
+
+
+def in_bounds(
+        pos: tuple[float, float, float],
+        rpa: RPA,
+        dx_max: float,
+        ) -> bool:
+    
+    x, y, z = pos
+
+    x_range_sim = (-rpa.sensor_size, rpa.sensor_size)
+    y_range_sim = (-rpa.sensor_size, rpa.sensor_size)
+    z_range_sim = (-rpa.depth - 2 * dx_max, rpa.depth + 100 * dx_max)
+    x_range_sensor = (-rpa.sensor_size / 2, rpa.sensor_size / 2)
+    y_range_sensor = (-rpa.sensor_size / 2, rpa.sensor_size / 2)
+    x_range_aperture = (-rpa.aperture_size / 2, rpa.aperture_size / 2)
+    y_range_aperture = (-rpa.aperture_size / 2, rpa.aperture_size / 2)
+
+    # out of simulation z range
+    if z < z_range_sim[0] or z > z_range_sim[1]:
+        return False
+
+    # left of aperture
+    if z < dx_max:
+
+        # in the plane of aperture
+        if z > -dx_max:
+            # does not pass through aperture, hit aperture shield
+            if rpa.aperture_shape == 'square':
+                if x < x_range_aperture[0] or x > x_range_aperture[1]:
+                    return False
+                if y < y_range_aperture[0] or y > y_range_aperture[1]:
+                    return False
+            else:
+                if x**2 + y**2 > (rpa.aperture_size / 2)**2:
+                    return False
+        # out of simulation x or y range
+        if x < x_range_sim[0] or x > x_range_sim[1]:
+            return False
+        if y < y_range_sim[0] or y > y_range_sim[1]:
+            return False
+
+    # right of aperture
+    else:
+        # hit sensor walls
+        if x <= x_range_sensor[0] or x >= x_range_sensor[1]:
+            return False
+        if y <= y_range_sensor[0] or y >= y_range_sensor[1]:
+            return False
+    
+    return True
+
+
+def source_geometry(
+        rpa: RPA,
+        plasma: Plasma,
+        thermal_buf_factor: float = 3.0,
+        ) -> tuple[tuple[float, float], tuple[float, float], tuple[float, float], float]:
+    
+    Vti = np.sqrt(plasma.Ti[0] / plasma.Mi)
+    Vmag = np.linalg.norm(plasma.V)
+    Vperp_max = np.max([plasma.V[0], plasma.V[1]])
+    source_offset = rpa.depth / 2
+    thermal_buf = thermal_buf_factor * source_offset * Vti / Vmag
+    angle_buf = source_offset * Vperp_max / Vmag
+    source_size = rpa.aperture_size + 2 * angle_buf + 2 * thermal_buf
+
+    x_range = (-source_size / 2, source_size / 2)
+    y_range = x_range
+    z_range = (-source_offset, -source_offset)
+    area = source_size**2
+
+    return x_range, y_range, z_range, area
 
 
 def initial_phase(
@@ -244,9 +487,9 @@ def initial_phase(
     pid = np.random.choice([0, 1], p=weights)
 
     if do_electrons:
-        sigma = np.sqrt(plasma.Te[pid] / plasma.Me) # millimeters / microsecond
+        sigma = np.sqrt(plasma.Te[pid] / plasma.Me / 2) # millimeters / microsecond
     else:
-        sigma = np.sqrt(plasma.Ti[pid] / plasma.Mi) # millimeters / microsecond
+        sigma = np.sqrt(plasma.Ti[pid] / plasma.Mi / 2) # millimeters / microsecond
 
     if pid:
         V = (0, 0, 0)
@@ -404,7 +647,7 @@ def collect_punctures(
     for i in range(len(rays)):
         ray = rays[i] # millimeter
         ray = ray[~np.isnan(ray[:, 2]), :]
-        if ray[-1, 2] > surface:
+        if ray[-1, 2] >= surface:
             if get_coords:
                 punctures[i, :2] = ray[-1, :2] # millimeter
                 punctures[i, 2] = float(i) # index

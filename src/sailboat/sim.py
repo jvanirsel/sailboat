@@ -3,7 +3,8 @@ from gemini3d import read, model
 from pathlib import Path
 
 def setup(
-        sim_name: str
+        sim_name: str,
+        copy_files: bool = False
         ) -> None:
     
     '''
@@ -16,7 +17,7 @@ def setup(
     # read configuration and equilibrium directory
     sim_direc = Path(GEMINI_SIM_ROOT, sim_name).expanduser()
     cfg = read.config(sim_direc)
-    eq_direc = Path(cfg['eq_dir'])
+    eq_direc = Path(cfg['eq_dir']).expanduser()
 
     if utils.simulation_finished(sim_direc):
         print(f'Simulation {sim_direc} already finished')
@@ -42,7 +43,8 @@ def setup(
             write.eq_config(sim_direc)
             model.setup(eq_direc, eq_direc)
         write.pbs(eq_direc)
-        utils.vega_rsync(eq_direc, eq_direc.parent)
+        if copy_files:
+            utils.vega_rsync(eq_direc, eq_direc.parent)
         command = 'msub ' + str(utils.collapseuser(eq_direc) / 'submit.pbs')
         print('Equilibrium simulation setup done. ' \
                                 f'Please run the following command on VEGA:\n\n{command}\n')
@@ -54,7 +56,8 @@ def setup(
         if not utils.simulation_finished_setup(sim_direc):
             model.setup(sim_direc, sim_direc)
         write.pbs(sim_direc)
-        utils.vega_rsync(sim_direc, sim_direc.parent)
+        if copy_files:
+            utils.vega_rsync(sim_direc, sim_direc.parent)
         command = 'msub ' + str(utils.collapseuser(sim_direc) / 'submit.pbs')
         print('Simulation setup finished. ' \
             f'Please run the following command on VEGA:\n\n{command}\n')

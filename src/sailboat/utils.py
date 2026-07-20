@@ -431,5 +431,3 @@ def load_bar(
         bar = '▰' * loaded_len + '▱' * (bar_len - loaded_len)
 
     print(prefix + bar + suffix, end='\r')
-
-

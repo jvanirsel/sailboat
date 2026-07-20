@@ -14,7 +14,7 @@ def rays(
         do_electrons: bool = False,
         debug: bool = False,
         is_example_plot: bool = False,
-        dark_background: bool = False
+        dark_background: bool = True
         ) -> None:
 
     from . import sim
@@ -57,11 +57,11 @@ def rays(
     ax = axs[0, 0]
     assert(isinstance(ax, Axes))
 
-    for ray in rays[::max(len(rays) // 1000, 1)]:
+    for ray in rays[::max(len(rays) // 100, 1)]:
         ray = ray[~np.isnan(ray[:, 0]), :]
         ax.plot(ray[:, 2], ray[:, 1], color=fg, alpha=0.9, linewidth=0.1)
         if debug:
-            ax.scatter(ray[::10, 2], ray[::10, 1], color=fg, alpha=0.9, marker='.', s=1, linewidths=0)
+            ax.scatter(ray[::1, 2], ray[::1, 1], color=np.random.rand(3), alpha=0.9, marker='.', s=1, linewidths=0)
             ax.scatter(ray[-1, 2], ray[-1, 1], color='r', marker='.', s=3,  linewidths=1)
     z_prev = -999.0
     z_offset = 0.0
@@ -86,7 +86,7 @@ def rays(
     ax.plot([zd, zd], [-ys, ys], color='g', linestyle='--', linewidth=1) # sensor
     ax.plot([z0, 0, 0, 0, zd + 1, zd + 1, 0, 0, 0, z0], [ys, ys, ya, ys, ys, -ys, -ys, -ya, -ys, -ys], color='y', linewidth=5) # enclosure
     ax.plot([0, 0, np.nan, 0, 0], [ya * 1.02, ya, np.nan, -ya, -ya * 1.02], color='r', linewidth=5) # aperture
-    # ax.plot([0, 0, 0, 0, 0], [-max_size, -ys, np.nan, ys, max_size], color='y', linewidth=2) # aperture shield
+    ax.plot([0, 0, 0, 0, 0], [-max_size, -ys, np.nan, ys, max_size], color='y', linewidth=2) # aperture shield
         
     ax.set_xlabel('z (mm)')
     ax.set_ylabel('y (mm)')
@@ -100,9 +100,14 @@ def rays(
     ax = axs[0, 1]
     assert(isinstance(ax, Axes))
     sensor_hits = sim.collect_punctures(rays, rpa.depth, get_coords=True)
-    weights = ray_rates[sensor_hits[:, 2].astype(int)]  / np.sum(ray_rates)
+    weights = 1e4 * ray_rates[sensor_hits[:, 2].astype(int)]  / np.sum(ray_rates)
 
-    ax.scatter(sensor_hits[:, 0], sensor_hits[:, 1], s=weights * 1e4, color=fg, alpha=0.7)
+    ax.scatter(sensor_hits[:, 0], sensor_hits[:, 1], s=weights, color=fg, alpha=0.7)
+    if debug:
+        for ray in rays[::max(len(rays) // 1000, 1)]:
+            ray = ray[~np.isnan(ray[:, 0]), :]
+            if ray[-1] not in sensor_hits:
+                ax.scatter(ray[-1, 0], ray[-1, 1], s=3, color='r', alpha=0.7)
     ax.plot([-xs, xs, xs, -xs, -xs], [-ys, -ys, ys, ys, -ys], color='y', linewidth=5) # sensor
     if rpa.aperture_shape == 'square':
         ax.plot([-xa, xa, xa, -xa, -xa], [-ya, -ya, ya, ya, -ya], color='r', linewidth=5, alpha=0.5) # aperture
@@ -218,7 +223,8 @@ def rays(
         plot_path = plot_path.with_stem(plot_path.stem + '_eg')
     print(f'Saving figure ...', end='\r')
     plot_path.parent.mkdir(exist_ok=True)
-    fig.savefig(plot_path, dpi=600)
+    dpi = 1200 if debug else 600
+    fig.savefig(plot_path, dpi=dpi)
     print(f'Saved: {plot_path}')
 
     plt.close(fig)
@@ -250,22 +256,22 @@ def hits_histogram(
     return bin_centers, current_density
 
 
-def rays_3d(
-        rays: np.ndarray,
-        rpa: RPA
-        ) -> None:
+# def rays_3d(
+#         rays: np.ndarray,
+#         rpa: RPA
+#         ) -> None:
 
-    # plt.style.use('dark_background')
-    fig = plt.figure(figsize=(8,6))
-    ax = fig.add_subplot(111, projection='3d')
+#     # plt.style.use('dark_background')
+#     fig = plt.figure(figsize=(8,6))
+#     ax = fig.add_subplot(111, projection='3d')
 
-    for ray in rays:
-        ax.plot(ray[:, 2], ray[:, 0], ray[:, 1], color=bg, alpha=0.9, linewidth=0.1)
+#     for ray in rays:
+#         ax.plot(ray[:, 2], ray[:, 0], ray[:, 1], color=bg, alpha=0.9, linewidth=0.1)
     
-    lim = 20
-    ax.set_xlim(-lim, lim)
-    ax.set_ylim(-lim, lim)
-    ax.set_zlim(-lim, lim)
-    ax.set_aspect('equal')
+#     lim = 20
+#     ax.set_xlim(-lim, lim)
+#     ax.set_ylim(-lim, lim)
+#     ax.set_zlim(-lim, lim)
+#     ax.set_aspect('equal')
 
-    fig.savefig('rays_3d.png')
+#     fig.savefig('rays_3d.png')

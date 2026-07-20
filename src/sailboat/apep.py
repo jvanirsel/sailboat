@@ -13,7 +13,6 @@ from pathlib import Path
 def convert_solar_flux(
         cfg: dict,
         xg: dict, # required for setup_functions in config.nml
-        solflux_in_extension: str = 'nc4',
         unmask: bool = False
         ) -> None:
 
@@ -36,10 +35,13 @@ def convert_solar_flux(
         t += sim_solflux_dt
 
     ## read input filenames
-    solflux_filenames = sorted([f for f in solflux_in_direc.expanduser().iterdir() if f.is_file() and f.suffix == f'.{solflux_in_extension}'])
+    solflux_filenames = sorted([
+        f for f in solflux_in_direc.expanduser().iterdir() if f.is_file() and f.suffix == '.nc4'
+        ])
     if not solflux_filenames:
-        raise FileNotFoundError(f'No .{solflux_in_extension} files found in {solflux_in_direc}')
-    solflux_times = [datetime.strptime(f.name[12:27], '%Y%m%d_%H%M%S') for f in solflux_filenames]
+        raise FileNotFoundError(f'No .nc4 files found in {solflux_in_direc}')
+    id0 = 13 if year == 2023 else 12
+    solflux_times = [datetime.strptime(f.name[id0:id0+15], '%Y%m%d_%H%M%S') for f in solflux_filenames]
     if solflux_times[0] - sim_solflux_dt > sim_times[0] or \
        solflux_times[-1] + sim_solflux_dt < sim_times[-1]:
         raise ValueError('Solar flux data out of simulation time range\n' \
@@ -48,6 +50,7 @@ def convert_solar_flux(
 
     ## read solar flux grid and wavelength data
     solflux_path = Path(solflux_in_direc, solflux_filenames[0])
+    print(f'Reading solar flux data from {solflux_path}...')
     with h5py.File(solflux_path, 'r') as solflux_data:
         solflux_tgcm_data = solflux_data['sb_tgcm'] # first 22 tgcm spectral bins match gemini bins
         assert isinstance(solflux_tgcm_data, h5py.Group)  # narrows type for pylance checker
@@ -116,6 +119,13 @@ def convert_solar_flux(
             f.create_dataset('/mlon', data=glon)
 
     print('Done converting solar flux data...' + ' ' * 40)
+
+
+def convert_solar_flux_unmasked(
+        cfg: dict,
+        xg: dict, # required for setup_functions in config.nml
+        ) -> None:
+    convert_solar_flux(cfg, xg, unmask=True)
 
 
 def convert_ephemeris() -> None:
@@ -273,7 +283,7 @@ def get_slp_data(
     with h5py.File(slp_path) as f:
         slp_data_h5 = f[f'36.{rid}']
         assert(isinstance(slp_data_h5, h5py.Group))
-        day0 = str(slp_data_h5.attrs['description']).split(' of ')[-1]
+        day0 = str(slp_data_h5['time'].attrs['description']).split(' of ')[-1]
         time = np.array(slp_data_h5['time'], dtype=np.int64)
         time = np.datetime64(day0, 'us') + time.astype('timedelta64[us]')
         gdalt = np.array(slp_data_h5['altitude'], dtype=np.float64)
@@ -400,7 +410,7 @@ def plot_trajectories() -> None:
 def interpolate_trajectory(
         sim_direc: Path,
         rid: int
-        ) -> np.ndarray:
+        ) -> dict[str, np.ndarray]:
     
     variables = {
         'electron_density',
@@ -413,18 +423,18 @@ def interpolate_trajectory(
     out_path = Path(sim_direc, 'interpolated.h5')
 
     rocket_name = f'36.{rid}'
+    data = {var: np.array([]) for var in variables}
     if out_path.is_file():
-        with h5py.File(out_path, 'r') as f:
-            data = np.array([f[f'/{rocket_name}/{var}'] for var in variables]).transpose()
+        with h5py.File(out_path, 'r') as h5f:
+            for var in variables:
+                data[var] = np.array(h5f[f'/{rocket_name}/{var}'])
     else:
         data = interpolate.trajectory(sim_direc, *get_trajectory(rid), variables=variables)
-        with h5py.File(out_path, 'w') as f:
-            vid = 0
+        with h5py.File(out_path, 'w') as h5f:
             for var in variables:
-                ds = f.create_dataset(f'/{rocket_name}/{var}', data=data[:, vid])
-                ds.attrs['description'] = f'Interpolated {var.replace("_", " ")} along Apep-{1+int(rid<390)} trajectory 36.{rid}'
+                ds = h5f.create_dataset(f'/{rocket_name}/{var}', data=data[var])
+                ds.attrs['description'] = f'interpolated {var.replace("_", " ")} along apep-{1+int(rid<390)} trajectory 36.{rid}'
                 ds.attrs['units'] = units[var]
-                vid += 1
 
     return data
 
