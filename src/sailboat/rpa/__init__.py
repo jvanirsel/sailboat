@@ -101,7 +101,8 @@ class RPA:
             screens: list[Screen],
             geometry: RPAGeometry,
             floating_potential: float,
-            is_ivm: bool = True
+            is_ivm: bool = True,
+            screen_opacity: float = 1.0,
             ):
 
         if not screens:
@@ -132,6 +133,7 @@ class RPA:
             self.iv_curve = np.full((sweep_len, 2), np.nan)
         self.floating_potential = floating_potential
         self.is_ivm = is_ivm
+        self.screen_opacity = screen_opacity
 
     def __len__(
             self
@@ -216,4 +218,4 @@ class Plasma:
         self.B = magnetic_field
 
 
-from . import sim, plot, read
+from . import sim, plot, read, write, measure

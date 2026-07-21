@@ -72,6 +72,7 @@ def plasma_parameters(
     title += f',      u\u2082 = {u2_meas[0]:.2f} \u00b1 {u2_meas[1]:.2f} mm \u03bcs\u207b\u00b9,  \u0394 = {u2_meas[2]:.2f} ({u2_meas[3]:+.2f}%)'
     title += f'\nT\u1d62 = {t_meas[0]*1e3:.2f} \u00b1 {t_meas[1]*1e3:.2f} meV,  \u0394 = {t_meas[2]*1e3:.2f} ({t_meas[3]:+.2f}%)'
     title += f',      u\u2083 = {u3_meas[0]:.2f} \u00b1 {u3_meas[1]:.2f} mm \u03bcs\u207b\u00b9,  \u0394 = {u3_meas[2]:.2f} ({u3_meas[3]:+.2f}%)'
+    plt.style.use('light_background')
     plt.figure(figsize=(9,6))
     plt.scatter(voltages, total_currents, color='k', label='IV data (nA)')
     plt.plot(voltages, total_currents_theoretical, 'm', label='IV theor. (nA)')

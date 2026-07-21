@@ -370,6 +370,9 @@ def fast_rays(
                 z0 = z_prev_screen - eps
                 screen_id -= 1
             rays[rid, tid-1, 2] = z0
+
+            if np.random.uniform(0.0, 1.0) > rpa.screen_opacity:
+                break
             
             # check if new position in bounds
             if not in_bounds((x0, y0, z0), rpa, dx_max):

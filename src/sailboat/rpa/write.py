@@ -138,3 +138,74 @@ def h5ds(
     ds = h5f.create_dataset(name, data=data, dtype=dtype)
     ds.attrs['description'] = description
     ds.attrs['units'] = units
+
+
+def config_toml(
+        base_path: Path,
+        out_path: Path,
+        plasma_changes: dict[str, float | list[float]]
+        ) -> None:
+    
+    with open(base_path / 'config.toml') as f:
+        lines = f.readlines()
+    
+    new_lines = []
+    change_plasma = False
+    for line in lines:
+
+        line = line.rstrip('\n')
+        if line == '[plasma]':
+            change_plasma = True
+        elif line == '[background_plasma]':
+            change_plasma = False
+
+        name = line.replace(' ', '').split('=')[0]
+        comment = line.split('#')[-1]
+        comment_start_id = len(line.split('#')[0])
+
+        if name in plasma_changes.keys() and change_plasma:
+            val = plasma_changes[name]
+            if isinstance(val, list):
+                val_str = ''
+                for v in val:
+                    val_str += f'{v:.3f}, '
+                val_str = '[' + val_str.rstrip(', ') + ']'
+            else:
+                val_str = f'{val:.3f}'
+
+            line = f'{name} = {val_str}'
+            num_chars = len(line)
+            line += ' ' * (comment_start_id - num_chars) + '#' + comment + ' (auto-generated)'
+
+        new_lines.append(f'{line}\n')
+    
+    with open(out_path / 'config.toml', 'w') as f:
+        f.writelines(new_lines)
+
+def batch(
+        base_path: Path,
+        out_path: Path,
+        densities: np.ndarray | list[float],
+        beam_speeds: np.ndarray | list[float],
+        beam_angles: np.ndarray | list[float], # degrees
+        ion_temperatures: np.ndarray | list[float],
+        target_num_tests: int = 192
+        ) -> None:
+
+    out_path.mkdir(exist_ok=True)
+
+    num_tests = len(densities) * len(beam_speeds) * len(beam_angles) * len(ion_temperatures)
+    if num_tests != target_num_tests:
+        raise ValueError(f'Incorrect amount of tests: {num_tests} =/= {target_num_tests}')
+
+    ind = 0
+    for n in densities:
+        for u in beam_speeds:
+            for a in beam_angles:
+                for t in ion_temperatures:
+                    u2 = u * np.sin(np.deg2rad(a))
+                    u3 = u * np.cos(np.deg2rad(a))
+                    path = out_path / f'{ind:03d}_n={n:04d}_u={u:02d}_a={a:02d}_t={int(1e3*t):03d}'
+                    path.mkdir(exist_ok=True)
+                    config_toml(base_path, path, {'density': n, 'beam_velocity': [0.0, u2, u3], 'ion_temperature': t})
+                    ind += 1

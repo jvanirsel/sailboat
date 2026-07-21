@@ -1,6 +1,5 @@
 from sailboat import SAILBOAT_ROOT, utils
 import sailboat.rpa as srpa
-from sailboat.rpa import measure
 import time
 import csv
 import matplotlib.pyplot as plt
@@ -78,9 +77,13 @@ import h5py
 # quit()
 
 t0 = time.perf_counter()
-rpa_direc = SAILBOAT_ROOT / 'data' / 'rpa' / sys.argv[1]
+raven_direc = SAILBOAT_ROOT / 'data' / 'rpa' / sys.argv[1]
+if len(sys.argv) >=2:
+    batch_direc = SAILBOAT_ROOT / 'data' / 'rpa' / sys.argv[2]
+    srpa.write.batch(raven_direc, batch_direc, [10, 100, 1000], [3, 6, 9, 12], [0, 8, 16, 24], [0.01, 0.05, 0.10, 0.5])
+# srpa.write.config_toml(rpa_direc, {'ion_temperature': 999.999, 'beam_velocity': [0.0, 1.0, 2.0]})
 # srpa.sim.run(rpa_direc, do_electrons=False, debug=True, do_example_plots=False, go_fast=True)
-measure.plasma_parameters(rpa_direc / 'config_09_data.h5')
+# srpa.measure.plasma_parameters(rpa_direc / 'config_10_data.h5')
 t1 = time.perf_counter()
 print(f'Elapsed time: {(t1 - t0) / 60:.2f} minutes')
 quit()
@@ -92,5 +95,9 @@ quit()
 
     # h5_file_path = sim_direc / 'config_00_data.h5'  # change to your file path
     # read_h5_file(h5_file_path)
+
+densities = [50, 100, 500]
+beam_speeds = []
+ion_temperatures = [0.01, 0.05, 0.1]
 
 

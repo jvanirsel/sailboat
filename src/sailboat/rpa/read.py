@@ -43,6 +43,10 @@ def rpa(
     sweep_ids = np.array(cfg_rpa['sweep_ids']).astype(int)
     is_ivm = bool(cfg_rpa['is_ivm'])
     shape = 'square' if bool(cfg_rpa['square_aperture']) else 'circle'
+    wire_diameter = cfg_rpa['wire_diameter']
+    wire_density = cfg_rpa['wire_density']
+    wire_distance = 1 / wire_density
+    screen_opacity = (wire_distance - wire_diameter)**2 / wire_distance**2
 
     screens = []
     for sid in range(num_screens):
@@ -72,6 +76,7 @@ def rpa(
             ),
         floating_potential = floating_potential,
         is_ivm = is_ivm,
+        screen_opacity = screen_opacity,
     )
 
 
