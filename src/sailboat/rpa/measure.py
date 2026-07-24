@@ -11,6 +11,7 @@ from matplotlib import pyplot as plt
 
 def plasma_parameters(
         file: Path,
+        add_noise: bool = True,
         ) -> None:
     
     from . import write
@@ -28,18 +29,23 @@ def plasma_parameters(
 
         mass = float(np.array(h5f['plasma/mass'])) # electronvolt microsecond^2 / millimeter^2
         charge = float(np.array(h5f['plasma/charge'])) # femtocoulomb
-        Aeff = float(np.array(h5f['rpa/geometry/aperture_area'])) # millimeter^2
+
+        area = float(np.array(h5f['rpa/geometry/aperture_area'])) # millimeter^2
         radius = float(np.array(h5f['rpa/geometry/aperture_size'])) / 2.0 # millimeter
-        drift_length = float(np.array(h5f['rpa/geometry/depth']))
+        drift_length = float(np.array(h5f['rpa/geometry/depth'])) # millimeter
+        num_screens = int(np.array(h5f['rpa/screens/number']))
+        opacity = float(np.array(h5f['rpa/screens/opacity']))
+        Aeff = area * opacity**num_screens
 
         voltages = np.array(h5f['iv_curve/voltages']) # volt
         currents = np.array(h5f['iv_curve/currents']) # nanoampere
+        if add_noise:
+            noise_level = float(np.array(h5f['rpa/noise_level'])) # nanoampere
+            currents += np.random.normal(0.0, noise_level / 2, currents.shape)
 
     total_currents = np.sum(currents, axis=1) # nanoampere
-    # total_currents = gaussian_filter1d(total_currents, sigma=1) # nanoampere
     total_currents_theoretical = get_theoretical_currents(voltages, n_true, u3_true, t_true, mass, charge, Aeff)
 
-    # saturation_current_id = np.where(total_currents < np.max(total_currents) - 0.01 * (np.max(total_currents) - np.min(total_currents)))[0][0]
     sat_current_ids = total_currents > np.max(total_currents) * 0.98
     sat_current = float(np.mean(total_currents[sat_current_ids]))
     sat_current_error = float(2 * np.std(total_currents[sat_current_ids]))
@@ -72,15 +78,15 @@ def plasma_parameters(
     title += f',      u\u2082 = {u2_meas[0]:.2f} \u00b1 {u2_meas[1]:.2f} mm \u03bcs\u207b\u00b9,  \u0394 = {u2_meas[2]:.2f} ({u2_meas[3]:+.2f}%)'
     title += f'\nT\u1d62 = {t_meas[0]*1e3:.2f} \u00b1 {t_meas[1]*1e3:.2f} meV,  \u0394 = {t_meas[2]*1e3:.2f} ({t_meas[3]:+.2f}%)'
     title += f',      u\u2083 = {u3_meas[0]:.2f} \u00b1 {u3_meas[1]:.2f} mm \u03bcs\u207b\u00b9,  \u0394 = {u3_meas[2]:.2f} ({u3_meas[3]:+.2f}%)'
-    plt.style.use('light_background')
+    plt.style.use('dark_background')
     plt.figure(figsize=(9,6))
-    plt.scatter(voltages, total_currents, color='k', label='IV data (nA)')
+    plt.scatter(voltages, total_currents, color='w', label='IV data (nA)')
     plt.plot(voltages, total_currents_theoretical, 'm', label='IV theor. (nA)')
     plt.scatter(voltages[sat_current_ids], total_currents[sat_current_ids], color='g', marker='x', label='Sat. current (nA)')
     plt.plot(voltages, [sat_current + sat_current_error] * len(sat_current_ids), 'g:')
     plt.plot(voltages, [sat_current - sat_current_error] * len(voltages), 'g:')
     plt.scatter(voltages, didv, color='r', label='dI/dV data (nA / V)')
-    plt.plot(voltages, didv_actual, 'k:', label='dI/dV theor. (nA / V)')
+    plt.plot(voltages, didv_actual, 'w:', label='dI/dV theor. (nA / V)')
     plt.plot(voltages, didv_fit, 'y:', label='dI/dV data fit (nA / V)')
     plt.legend()
     plt.grid()

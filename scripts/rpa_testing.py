@@ -82,7 +82,7 @@ if len(sys.argv) >=2:
     batch_direc = SAILBOAT_ROOT / 'data' / 'rpa' / sys.argv[2]
     srpa.write.batch(raven_direc, batch_direc, [10, 100, 1000], [3, 6, 9, 12], [0, 8, 16, 24], [0.01, 0.05, 0.10, 0.5])
 # srpa.write.config_toml(rpa_direc, {'ion_temperature': 999.999, 'beam_velocity': [0.0, 1.0, 2.0]})
-# srpa.sim.run(rpa_direc, do_electrons=False, debug=True, do_example_plots=False, go_fast=True)
+srpa.sim.run(raven_direc, do_electrons=False, debug=True, do_example_plots=False, go_fast=True)
 # srpa.measure.plasma_parameters(rpa_direc / 'config_10_data.h5')
 t1 = time.perf_counter()
 print(f'Elapsed time: {(t1 - t0) / 60:.2f} minutes')

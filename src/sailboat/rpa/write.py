@@ -20,6 +20,9 @@ def config_data(
         h5ds(h5f, group + 'max_distance', cfg['dx_max'], np.float64, 'Maximum distance per time step', 'millimeter')
         h5ds(h5f, group + 'time_step_factor', cfg['dt_factor'], np.float64, 'time step x curvature x speed (dt x kappa x v)', 'n/a')
 
+        group '/rpa/'
+        h5ds(h5f, group + 'noise_level', rpa.noise_level, str, '2-sigma random noise level per anode', 'nanoampere')
+
         group = '/rpa/geometry/'
         h5ds(h5f, group + 'aperture_shape', rpa.aperture_shape, str, 'Aperture shape', 'n/a')
         h5ds(h5f, group + 'aperture_size', rpa.aperture_size, np.float64, 'Aperture side length', 'millimeter')
@@ -30,6 +33,8 @@ def config_data(
         group = '/rpa/screens/'
         h5ds(h5f, group + 'locations', rpa.get_locations(), np.float64, 'Screen distances from aperture', 'millimeter')
         h5ds(h5f, group + 'voltages', rpa.get_voltages(), np.float64, 'Screen voltages', 'volt')
+        h5ds(h5f, group + 'number', rpa.get_voltages().size - 1, np.int64, 'Number of screens', 'n/a')
+        h5ds(h5f, group + 'opacity', rpa.screen_opacity, np.float64, 'Opactity of one screen (0 = opaque)', 'n/a')
 
         group = '/rpa/sweep/'
         h5ds(h5f, group + 'index', rpa.sweep_screen_id, np.int64, 'Index of sweeping screen', 'n/a')

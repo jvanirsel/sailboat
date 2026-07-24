@@ -47,6 +47,7 @@ def rpa(
     wire_density = cfg_rpa['wire_density']
     wire_distance = 1 / wire_density
     screen_opacity = (wire_distance - wire_diameter)**2 / wire_distance**2
+    noise_level = cfg_rpa['noise_level']
 
     screens = []
     for sid in range(num_screens):
@@ -77,6 +78,7 @@ def rpa(
         floating_potential = floating_potential,
         is_ivm = is_ivm,
         screen_opacity = screen_opacity,
+        noise_level = noise_level,
     )
 
 

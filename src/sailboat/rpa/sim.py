@@ -272,13 +272,13 @@ def fast_rays(
     screen_locations = np.insert(screen_locations, 0, -2.0 * rpa.depth)
     screen_voltages = rpa.get_voltages()
     screen_voltages = np.insert(screen_voltages, 0, 0.0)
-    num_screens = len(screen_locations)
+    num_screens = len(screen_locations) - 1
 
     if do_electrons:
         specific_charge = -1 / plasma.Me # volt^-1 microsecond^-2 millimeter^2
     else:
         specific_charge = plasma.Z / plasma.Mi # volt^-1 microsecond^-2 millimeter^2
-    Ez = np.array([(screen_voltages[i+1] - screen_voltages[i]) / (screen_locations[i+1] - screen_locations[i]) for i in range(num_screens-1)])
+    Ez = np.array([(screen_voltages[i+1] - screen_voltages[i]) / (screen_locations[i+1] - screen_locations[i]) for i in range(num_screens)])
     azs = -specific_charge * Ez
 
     early_terminations: int = 0
@@ -371,7 +371,8 @@ def fast_rays(
                 screen_id -= 1
             rays[rid, tid-1, 2] = z0
 
-            if np.random.uniform(0.0, 1.0) > rpa.screen_opacity:
+            # screen opacity unless at anode
+            if np.random.uniform(0.0, 1.0) > rpa.screen_opacity and screen_id != num_screens:
                 break
             
             # check if new position in bounds
@@ -383,7 +384,7 @@ def fast_rays(
                 break
 
             # at outer screen
-            if screen_id < 0 or screen_id >= num_screens-1:
+            if screen_id < 0 or screen_id >= num_screens:
                 break
 
     print(f'Early terminations: {100 * early_terminations / num_rays:.4f} %')

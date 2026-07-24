@@ -103,6 +103,7 @@ class RPA:
             floating_potential: float,
             is_ivm: bool = True,
             screen_opacity: float = 1.0,
+            noise_level: float = 0.0
             ):
 
         if not screens:
@@ -134,6 +135,7 @@ class RPA:
         self.floating_potential = floating_potential
         self.is_ivm = is_ivm
         self.screen_opacity = screen_opacity
+        self.noise_level = noise_level
 
     def __len__(
             self
