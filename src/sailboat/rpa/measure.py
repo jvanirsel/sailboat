@@ -46,7 +46,7 @@ def plasma_parameters(
     total_currents = np.sum(currents, axis=1) # nanoampere
     total_currents_theoretical = get_theoretical_currents(voltages, n_true, u3_true, t_true, mass, charge, Aeff)
 
-    sat_current_ids = total_currents > np.max(total_currents) * 0.98
+    sat_current_ids = total_currents > np.quantile(total_currents, 0.95)
     sat_current = float(np.mean(total_currents[sat_current_ids]))
     sat_current_error = float(2 * np.std(total_currents[sat_current_ids]))
 

@@ -20,8 +20,8 @@ def config_data(
         h5ds(h5f, group + 'max_distance', cfg['dx_max'], np.float64, 'Maximum distance per time step', 'millimeter')
         h5ds(h5f, group + 'time_step_factor', cfg['dt_factor'], np.float64, 'time step x curvature x speed (dt x kappa x v)', 'n/a')
 
-        group '/rpa/'
-        h5ds(h5f, group + 'noise_level', rpa.noise_level, str, '2-sigma random noise level per anode', 'nanoampere')
+        group = '/rpa/'
+        h5ds(h5f, group + 'noise_level', rpa.noise_level, np.float64, '2-sigma random noise level per anode', 'nanoampere')
 
         group = '/rpa/geometry/'
         h5ds(h5f, group + 'aperture_shape', rpa.aperture_shape, str, 'Aperture shape', 'n/a')
